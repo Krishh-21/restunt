@@ -1,0 +1,916 @@
+// Prisma schema for Dinely Restaurant Operating System
+// Multi-tenant architecture with schema-per-tenant
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "./generated/client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [pgcrypto, uuid_ossp]
+  schemas    = ["public", "tenant"]
+}
+
+// Base tenant model - stored in public schema
+model Tenant {
+  id                 String             @id @default(uuid())
+  name               String
+  subdomain          String             @unique
+  logo               String?
+  gstin              String? // GST identification number
+  subscriptionTier   SubscriptionTier   @default(STARTER)
+  subscriptionStatus SubscriptionStatus @default(ACTIVE)
+  currency           String             @default("INR")
+  timezone           String             @default("Asia/Kolkata")
+  country            String             @default("IN")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  isActive           Boolean            @default(true)
+
+  // Settings stored as JSON - includes loyalty points rate, etc.
+  settings Json?
+
+  @@map("tenants")
+  @@schema("public")
+}
+
+enum SubscriptionTier {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+
+  @@schema("public")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+
+  @@schema("public")
+}
+
+// Outlet model - per tenant schema
+model Outlet {
+  id        String     @id @default(uuid())
+  tenantId  String     @map("tenant_id")
+  name      String
+  address   String
+  phone     String
+  email     String
+  type      OutletType @default(DINE_IN)
+  openTime  String?    @map("open_time")
+  closeTime String?    @map("close_time")
+  isActive  Boolean    @default(true) @map("is_active")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  // Settings stored as JSON - service charge %, tax rates, table prefix
+  settings Json?
+
+  // Relations
+  tables          Table[]
+  menuCategories  MenuCategory[]
+  menuItems       MenuItem[]
+  orders          Order[]
+  inventoryItems  InventoryItem[]
+  reservations    Reservation[]
+  bills           Bill[]
+  expenses        Expense[]
+  devices         Device[]
+  kitchenStations KitchenStation[]
+
+  @@index([tenantId])
+  @@map("outlets")
+  @@schema("tenant")
+}
+
+enum OutletType {
+  DINE_IN
+  QSR
+  CLOUD_KITCHEN
+  CAFE
+  BAR
+  FOOD_TRUCK
+
+  @@schema("tenant")
+}
+
+// User/Staff model - per tenant schema
+model User {
+  id                String    @id @default(uuid())
+  tenantId          String    @map("tenant_id")
+  username          String
+  email             String
+  phone             String?
+  passwordHash      String    @map("password_hash")
+  pinHash           String?   @map("pin_hash") // For tablet quick login
+  fullName          String    @map("full_name")
+  role              UserRole  @default(CASHIER)
+  outletAssignments String[]  @map("outlet_assignments") // Array of outlet IDs
+  isActive          Boolean   @default(true) @map("is_active")
+  lastLoginAt       DateTime? @map("last_login_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  createdOrders      Order[]             @relation("OrderCreatedBy")
+  voidedOrders       Order[]             @relation("OrderVoidedBy")
+  auditLogs          AuditLog[]
+  cashDrawerSessions CashDrawerSession[] @relation("CashDrawerOpener")
+  closedCashSessions CashDrawerSession[] @relation("CashDrawerCloser")
+  createdStockTxns   StockTransaction[]  @relation("StockTxnCreatedBy")
+  approvedStockTxns  StockTransaction[]  @relation("StockTxnApprovedBy")
+
+  @@unique([tenantId, username])
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+  @@schema("tenant")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CASHIER
+  SERVER
+  KITCHEN
+  RIDER
+
+  @@schema("tenant")
+}
+
+// Menu Category
+model MenuCategory {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  outletId     String   @map("outlet_id")
+  name         String
+  displayOrder Int      @map("display_order")
+  image        String?
+  isActive     Boolean  @default(true) @map("is_active")
+  taxCategory  String?  @map("tax_category") // Links to tax rates in outlet settings
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  outlet    Outlet     @relation(fields: [outletId], references: [id])
+  menuItems MenuItem[]
+
+  @@index([tenantId, outletId])
+  @@map("menu_categories")
+  @@schema("tenant")
+}
+
+// Menu Item
+model MenuItem {
+  id                     String   @id @default(uuid())
+  tenantId               String   @map("tenant_id")
+  outletId               String?  @map("outlet_id") // null = applies to all outlets
+  categoryId             String   @map("category_id")
+  name                   String
+  description            String?
+  image                  String?  @map("image_url")
+  price                  Decimal  @db.Decimal(10, 2)
+  costPrice              Decimal? @map("cost_price") @db.Decimal(10, 2)
+  isAvailable            Boolean  @default(true) @map("is_available")
+  tags                   String[] // vegetarian, vegan, gluten-free, spicy, contains-nuts
+  stationId              String?  @map("station_id") // Kitchen station for KDS routing
+  preparationTimeMinutes Int?     @map("preparation_time_minutes")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  // JSON fields for complex data
+  modifiers Json? // Item modifiers configuration
+
+  // Relations
+  outlet     Outlet?      @relation(fields: [outletId], references: [id])
+  category   MenuCategory @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+  recipes    Recipe[]
+
+  @@index([tenantId, outletId])
+  @@index([categoryId])
+  @@map("menu_items")
+  @@schema("tenant")
+}
+
+// Item Modifier
+model ItemModifier {
+  id       String           @id @default(uuid())
+  tenantId String           @map("tenant_id")
+  name     String // e.g., "Size", "Add-ons"
+  type     ModifierType
+  required Boolean
+  options  ModifierOption[]
+
+  @@index([tenantId])
+  @@map("item_modifiers")
+  @@schema("tenant")
+}
+
+model ModifierOption {
+  id              String  @id @default(uuid())
+  modifierId      String  @map("modifier_id")
+  name            String // e.g., "Large", "Extra Cheese"
+  priceAdjustment Decimal @map("price_adjustment") @db.Decimal(10, 2) // Positive or negative
+
+  // Relations
+  modifier ItemModifier @relation(fields: [modifierId], references: [id])
+
+  @@index([modifierId])
+  @@map("modifier_options")
+  @@schema("tenant")
+}
+
+enum ModifierType {
+  SINGLE
+  MULTIPLE
+
+  @@schema("tenant")
+}
+
+// Table
+model Table {
+  id                String      @id @default(uuid())
+  tenantId          String      @map("tenant_id")
+  outletId          String      @map("outlet_id")
+  number            String
+  name              String?
+  capacity          Int
+  section           String?
+  status            TableStatus @default(AVAILABLE)
+  qrCodeUrl         String?     @map("qr_code_url")
+  currentOrderId    String?     @map("current_order_id") // Link to active order
+  occupiedAt        DateTime?   @map("occupied_at")
+  floorPlanPosition Json?       @map("floor_plan_position") // {x, y, shape}
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  outlet       Outlet        @relation(fields: [outletId], references: [id])
+  orders       Order[]
+  reservations Reservation[]
+
+  @@index([tenantId, outletId])
+  @@map("tables")
+  @@schema("tenant")
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+
+  @@schema("tenant")
+}
+
+// Order
+model Order {
+  id                   String         @id @default(uuid())
+  tenantId             String         @map("tenant_id")
+  outletId             String         @map("outlet_id")
+  orderNumber          String         @map("order_number") // OUT1-2024-00123
+  tableId              String?        @map("table_id")
+  customerId           String?        @map("customer_id")
+  type                 OrderType      @default(DINE_IN)
+  source               OrderSource    @default(POS)
+  aggregatorSource     String?        @map("aggregator_source") // 'zomato', 'swiggy', etc.
+  status               OrderStatus    @default(DRAFT)
+  items                OrderItem[]
+  subtotal             Decimal        @db.Decimal(10, 2)
+  taxAmount            Decimal        @map("tax_amount") @db.Decimal(10, 2)
+  taxBreakdown         Json?          @map("tax_breakdown") // CGST/SGST breakdown
+  serviceCharge        Decimal        @default(0) @map("service_charge") @db.Decimal(10, 2)
+  discountAmount       Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  discountCode         String?        @map("discount_code")
+  total                Decimal        @db.Decimal(10, 2)
+  paymentMethod        PaymentMethod? @map("payment_method")
+  paymentStatus        PaymentStatus  @default(PENDING) @map("payment_status")
+  paymentTransactionId String?        @map("payment_transaction_id")
+  notes                String?
+  createdByUserId      String         @map("created_by_user_id")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  settledAt            DateTime?      @map("settled_at")
+  voidedAt             DateTime?      @map("voided_at")
+  voidedByUserId       String?        @map("voided_by_user_id")
+  voidedReason         String?        @map("voided_reason")
+
+  // JSON field for vector clock (offline sync)
+  vectorClock Json? @map("vector_clock")
+
+  // Relations
+  outlet    Outlet     @relation(fields: [outletId], references: [id])
+  table     Table?     @relation(fields: [tableId], references: [id])
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  createdBy User       @relation("OrderCreatedBy", fields: [createdByUserId], references: [id])
+  voidedBy  User?      @relation("OrderVoidedBy", fields: [voidedByUserId], references: [id])
+  payments  Payment[]
+  bills     Bill[]
+  feedback  Feedback[]
+
+  @@index([tenantId, outletId])
+  @@index([orderNumber])
+  @@map("orders")
+  @@schema("tenant")
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+
+  @@schema("tenant")
+}
+
+enum OrderSource {
+  POS
+  CAPTAIN // Captain tablet
+  QR
+  ONLINE
+  AGGREGATOR // Zomato, Swiggy, etc.
+
+  @@schema("tenant")
+}
+
+enum OrderStatus {
+  DRAFT
+  SUBMITTED
+  PREPARING
+  READY
+  SERVED
+  SETTLED
+  VOIDED
+
+  @@schema("tenant")
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  WALLET
+  ONLINE
+
+  @@schema("tenant")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+
+  @@schema("tenant")
+}
+
+// Order Item
+model OrderItem {
+  id                  String          @id @default(uuid())
+  orderId             String          @map("order_id")
+  menuItemId          String          @map("menu_item_id")
+  menuItemName        String          @map("menu_item_name") // Denormalized for historical accuracy
+  quantity            Int
+  unitPrice           Decimal         @map("unit_price") @db.Decimal(10, 2)
+  modifiers           Json? // Selected modifiers with prices
+  specialInstructions String?         @map("special_instructions")
+  status              OrderItemStatus @default(PENDING)
+  kotPrintedAt        DateTime?       @map("kot_printed_at")
+
+  // Relations
+  order    Order    @relation(fields: [orderId], references: [id])
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+  @@schema("tenant")
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  READY
+  SERVED
+
+  @@schema("tenant")
+}
+
+// Payment
+model Payment {
+  id                   String        @id @default(uuid())
+  tenantId             String        @map("tenant_id")
+  orderId              String        @map("order_id")
+  amount               Decimal       @db.Decimal(10, 2)
+  method               PaymentMethod
+  gateway              String? // Razorpay, Stripe, etc.
+  gatewayTransactionId String?       @map("gateway_transaction_id")
+  status               PaymentStatus @default(PENDING)
+  settledAt            DateTime?     @map("settled_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId])
+  @@map("payments")
+  @@schema("tenant")
+}
+
+// Customer
+model Customer {
+  id            String       @id @default(uuid())
+  tenantId      String       @map("tenant_id")
+  name          String
+  phone         String // Primary identifier (unique per tenant)
+  email         String?
+  address       String?
+  dateOfBirth   DateTime?    @map("date_of_birth")
+  loyaltyTier   CustomerTier @default(BRONZE) @map("loyalty_tier")
+  loyaltyPoints Int          @default(0) @map("loyalty_points")
+  lifetimeValue Decimal      @default(0) @map("lifetime_value") @db.Decimal(10, 2) // Total spend
+  orderCount    Int          @default(0) @map("order_count")
+  lastOrderDate DateTime?    @map("last_order_date")
+  tags          String[] // 'prefers-spicy', 'gluten-free', etc.
+  notes         String?
+  whatsappOptIn Boolean      @default(false) @map("whatsapp_opt_in")
+  emailOptIn    Boolean      @default(false) @map("email_opt_in")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  orders              Order[]
+  reservations        Reservation[]
+  loyaltyTransactions LoyaltyTransaction[]
+  feedback            Feedback[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+  @@map("customers")
+  @@schema("tenant")
+}
+
+enum CustomerTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+
+  @@schema("tenant")
+}
+
+// Loyalty Transaction
+model LoyaltyTransaction {
+  id            String      @id @default(uuid())
+  tenantId      String      @map("tenant_id")
+  customerId    String      @map("customer_id")
+  type          LoyaltyType
+  points        Int // Positive for earn, negative for redeem
+  balanceBefore Int         @map("balance_before")
+  balanceAfter  Int         @map("balance_after")
+  orderId       String?     @map("order_id")
+  reason        String
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, customerId])
+  @@map("loyalty_transactions")
+  @@schema("tenant")
+}
+
+enum LoyaltyType {
+  EARN
+  REDEEM
+  EXPIRE
+  ADJUSTMENT
+
+  @@schema("tenant")
+}
+
+// Inventory Item
+model InventoryItem {
+  id                  String   @id @default(uuid())
+  tenantId            String   @map("tenant_id")
+  outletId            String   @map("outlet_id")
+  name                String
+  category            String // 'vegetables', 'meats', 'dairy', 'dry-goods'
+  unitOfMeasure       String   @map("unit_of_measure") // kg, liter, piece
+  currentQuantity     Decimal  @map("current_quantity") @db.Decimal(10, 3)
+  minimumThreshold    Decimal  @map("minimum_threshold") @db.Decimal(10, 3) // Alert when below this
+  reorderQuantity     Decimal  @map("reorder_quantity") @db.Decimal(10, 3)
+  weightedAverageCost Decimal  @map("weighted_average_cost") @db.Decimal(10, 2) // Updated on goods receipt
+  lastUpdatedAt       DateTime @updatedAt @map("last_updated_at")
+  version             Int      @default(1) // For optimistic locking
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  // Relations
+  outlet            Outlet             @relation(fields: [outletId], references: [id])
+  transactions      StockTransaction[]
+  recipeIngredients RecipeIngredient[]
+
+  @@index([tenantId, outletId])
+  @@map("inventory_items")
+  @@schema("tenant")
+}
+
+// Recipe Specification
+model Recipe {
+  id            String             @id @default(uuid())
+  tenantId      String             @map("tenant_id")
+  menuItemId    String             @map("menu_item_id")
+  version       Int                @default(1)
+  effectiveDate DateTime           @map("effective_date")
+  isActive      Boolean            @default(true) @map("is_active")
+  ingredients   RecipeIngredient[]
+  createdAt     DateTime           @default(now()) @map("created_at")
+
+  // Relations
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([tenantId, menuItemId])
+  @@map("recipes")
+  @@schema("tenant")
+}
+
+// Recipe Ingredient
+model RecipeIngredient {
+  id                String  @id @default(uuid())
+  recipeId          String  @map("recipe_id")
+  inventoryItemId   String  @map("inventory_item_id")
+  inventoryItemName String  @map("inventory_item_name") // Denormalized
+  quantity          Decimal @db.Decimal(10, 3)
+  unitOfMeasure     String  @map("unit_of_measure")
+
+  // Relations
+  recipe        Recipe        @relation(fields: [recipeId], references: [id])
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@map("recipe_ingredients")
+  @@schema("tenant")
+}
+
+// Stock Transaction (Audit Trail)
+model StockTransaction {
+  id               String               @id @default(uuid())
+  tenantId         String               @map("tenant_id")
+  outletId         String               @map("outlet_id")
+  inventoryItemId  String               @map("inventory_item_id")
+  transactionType  StockTransactionType @map("transaction_type")
+  quantityChange   Decimal              @map("quantity_change") @db.Decimal(10, 3) // Positive or negative
+  quantityBefore   Decimal              @map("quantity_before") @db.Decimal(10, 3)
+  quantityAfter    Decimal              @map("quantity_after") @db.Decimal(10, 3)
+  costPerUnit      Decimal?             @map("cost_per_unit") @db.Decimal(10, 2)
+  reason           String
+  referenceType    String?              @map("reference_type") // 'order', 'purchase_order', 'manual'
+  referenceId      String?              @map("reference_id")
+  createdByUserId  String               @map("created_by_user_id")
+  approvedByUserId String?              @map("approved_by_user_id")
+  createdAt        DateTime             @default(now()) @map("created_at")
+
+  // Relations
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  createdBy     User          @relation("StockTxnCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy    User?         @relation("StockTxnApprovedBy", fields: [approvedByUserId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@map("stock_transactions")
+  @@schema("tenant")
+}
+
+enum StockTransactionType {
+  PURCHASE // Goods received
+  ADJUSTMENT // Manual adjustment
+  DEDUCTION // Order fulfillment
+  TRANSFER // Inter-outlet transfer
+  WASTE // Wastage/spoilage
+
+  @@schema("tenant")
+}
+
+// Kitchen Station
+model KitchenStation {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  outletId     String   @map("outlet_id")
+  name         String // e.g., "Grill", "Fryer", "Cold Station"
+  type         String // "hot", "cold", "beverage", "general"
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  outlet Outlet @relation(fields: [outletId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@map("kitchen_stations")
+  @@schema("tenant")
+}
+
+// Vendor
+model Vendor {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  name          String
+  contactPerson String   @map("contact_person")
+  phone         String
+  email         String?
+  address       String?
+  paymentTerms  String?  @map("payment_terms") // "Net 30", "COD", etc.
+  gstin         String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  purchaseOrders PurchaseOrder[]
+
+  @@index([tenantId])
+  @@map("vendors")
+  @@schema("tenant")
+}
+
+// Purchase Order
+model PurchaseOrder {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  outletId        String    @map("outlet_id")
+  poNumber        String    @map("po_number") // PO-2024-00045
+  vendorId        String    @map("vendor_id")
+  vendorName      String    @map("vendor_name") // Denormalized
+  status          POStatus  @default(DRAFT)
+  lineItems       Json      @map("line_items") // Array of POLineItem
+  subtotal        Decimal   @db.Decimal(10, 2)
+  taxAmount       Decimal   @map("tax_amount") @db.Decimal(10, 2)
+  total           Decimal   @db.Decimal(10, 2)
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  sentAt          DateTime? @map("sent_at")
+  receivedAt      DateTime? @map("received_at")
+  notes           String?
+
+  // Relations
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@map("purchase_orders")
+  @@schema("tenant")
+}
+
+enum POStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  CANCELLED
+
+  @@schema("tenant")
+}
+
+model Expense {
+  id               String          @id @default(uuid())
+  tenantId         String          @map("tenant_id")
+  outletId         String          @map("outlet_id")
+  category         ExpenseCategory
+  amount           Decimal         @db.Decimal(10, 2)
+  paymentMethod    PaymentMethod   @map("payment_method")
+  vendorName       String          @map("vendor_name")
+  description      String
+  receiptUrl       String?         @map("receipt_url")
+  expenseDate      DateTime        @map("expense_date")
+  recordedByUserId String          @map("recorded_by_user_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  outlet Outlet @relation(fields: [outletId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@map("expenses")
+  @@schema("tenant")
+}
+
+enum ExpenseCategory {
+  FOOD_COST
+  LABOR
+  RENT
+  UTILITIES
+  MARKETING
+  OTHER
+
+  @@schema("tenant")
+}
+
+// Bill/Invoice
+model Bill {
+  id             String        @id @default(uuid())
+  tenantId       String        @map("tenant_id")
+  outletId       String        @map("outlet_id")
+  orderId        String        @unique @map("order_id")
+  billNumber     String        @map("bill_number") // Sequential: OUT1-2024-00123
+  customerName   String?       @map("customer_name")
+  customerPhone  String?       @map("customer_phone")
+  customerGstin  String?       @map("customer_gstin")
+  subtotal       Decimal       @db.Decimal(10, 2)
+  taxAmount      Decimal       @map("tax_amount") @db.Decimal(10, 2)
+  taxBreakdown   Json          @map("tax_breakdown") // CGST/SGST details
+  serviceCharge  Decimal       @map("service_charge") @db.Decimal(10, 2)
+  discountAmount Decimal       @map("discount_amount") @db.Decimal(10, 2)
+  total          Decimal       @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod @map("payment_method")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  outlet Outlet @relation(fields: [outletId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@index([billNumber])
+  @@map("bills")
+  @@schema("tenant")
+}
+
+// Reservation
+model Reservation {
+  id              String            @id @default(uuid())
+  tenantId        String            @map("tenant_id")
+  outletId        String            @map("outlet_id")
+  tableId         String            @map("table_id")
+  customerId      String            @map("customer_id")
+  customerName    String            @map("customer_name")
+  customerPhone   String            @map("customer_phone")
+  partySize       Int               @map("party_size")
+  reservationDate DateTime          @map("reservation_date")
+  reservationTime String            @map("reservation_time") // HH:mm format
+  status          ReservationStatus @default(CONFIRMED)
+  notes           String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  outlet   Outlet   @relation(fields: [outletId], references: [id])
+  table    Table    @relation(fields: [tableId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@index([reservationDate, reservationTime])
+  @@map("reservations")
+  @@schema("tenant")
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  SEATED
+  CANCELLED
+  NO_SHOW
+
+  @@schema("tenant")
+}
+
+// Feedback
+model Feedback {
+  id                 String         @id @default(uuid())
+  tenantId           String         @map("tenant_id")
+  outletId           String         @map("outlet_id")
+  orderId            String         @map("order_id")
+  customerId         String?        @map("customer_id")
+  foodQualityRating  Int            @map("food_quality_rating") // 1-5
+  serviceSpeedRating Int            @map("service_speed_rating") // 1-5
+  overallRating      Int            @map("overall_rating") // 1-5
+  comments           String?
+  submittedAt        DateTime       @default(now()) @map("submitted_at")
+  response           String?
+  respondedByUserId  String?        @map("responded_by_user_id")
+  respondedAt        DateTime?      @map("responded_at")
+  status             FeedbackStatus @default(PENDING)
+
+  // Relations
+  order    Order?    @relation(fields: [orderId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId])
+  @@map("feedback")
+  @@schema("tenant")
+}
+
+enum FeedbackStatus {
+  PENDING
+  ACKNOWLEDGED
+  RESOLVED
+
+  @@schema("tenant")
+}
+
+// Discount Code
+model DiscountCode {
+  id              String       @id @default(uuid())
+  tenantId        String       @map("tenant_id")
+  code            String // e.g., "WELCOME10"
+  type            DiscountType
+  value           Decimal      @db.Decimal(10, 2)
+  minOrderValue   Decimal?     @map("min_order_value") @db.Decimal(10, 2)
+  maxDiscount     Decimal?     @map("max_discount") @db.Decimal(10, 2) // Cap for percentage discounts
+  applicableItems String[]     @map("applicable_items") // Empty = all items
+  validFrom       DateTime     @map("valid_from")
+  validUntil      DateTime     @map("valid_until")
+  usageLimit      Int?         @map("usage_limit") // null = unlimited
+  usageCount      Int          @default(0) @map("usage_count")
+  outletIds       String[]     @map("outlet_ids") // Empty = all outlets
+  isActive        Boolean      @default(true) @map("is_active")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@index([tenantId, code])
+  @@map("discount_codes")
+  @@schema("tenant")
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+
+  @@schema("tenant")
+}
+
+// Audit Log (Immutable)
+model AuditLog {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  outletId         String   @map("outlet_id")
+  userId           String   @map("user_id")
+  action           String // 'void_order', 'apply_discount', 'adjust_inventory'
+  entityType       String   @map("entity_type") // 'order', 'inventory_item'
+  entityId         String   @map("entity_id")
+  beforeState      Json?    @map("before_state")
+  afterState       Json?    @map("after_state")
+  ipAddress        String   @map("ip_address")
+  deviceId         String   @map("device_id")
+  reason           String?
+  approvedByUserId String?  @map("approved_by_user_id")
+  timestamp        DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, timestamp])
+  @@map("audit_logs")
+  @@schema("tenant")
+}
+
+// Cash Drawer Session
+model CashDrawerSession {
+  id                    String           @id @default(uuid())
+  tenantId              String           @map("tenant_id")
+  outletId              String           @map("outlet_id")
+  openedByUserId        String           @map("opened_by_user_id")
+  closedByUserId        String?          @map("closed_by_user_id")
+  openingAmount         Decimal          @map("opening_amount") @db.Decimal(10, 2)
+  expectedClosingAmount Decimal          @map("expected_closing_amount") @db.Decimal(10, 2)
+  actualClosingAmount   Decimal?         @map("actual_closing_amount") @db.Decimal(10, 2)
+  variance              Decimal?         @db.Decimal(10, 2)
+  openedAt              DateTime         @default(now()) @map("opened_at")
+  closedAt              DateTime?        @map("closed_at")
+  status                CashDrawerStatus @default(OPEN)
+
+  // Relations
+  openedBy User  @relation("CashDrawerOpener", fields: [openedByUserId], references: [id])
+  closedBy User? @relation("CashDrawerCloser", fields: [closedByUserId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@map("cash_drawer_sessions")
+  @@schema("tenant")
+}
+
+enum CashDrawerStatus {
+  OPEN
+  CLOSED
+
+  @@schema("tenant")
+}
+
+// Device (for offline sync)
+model Device {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  outletId     String     @map("outlet_id")
+  type         DeviceType
+  name         String
+  lastSyncAt   DateTime?  @map("last_sync_at")
+  vectorClock  Json?      @map("vector_clock")
+  isActive     Boolean    @default(true) @map("is_active")
+  registeredAt DateTime   @default(now()) @map("registered_at")
+
+  // Relations  
+  outlet Outlet @relation(fields: [outletId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@map("devices")
+  @@schema("tenant")
+}
+
+enum DeviceType {
+  POS
+  KDS
+  CAPTAIN_TABLET
+  MANAGER_TABLET
+
+  @@schema("tenant")
+}

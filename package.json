@@ -1,0 +1,55 @@
+{
+  "name": "dinely-restaurant-os",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-tenant SaaS Restaurant Operating System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:check": "tsx prisma/database-utils.ts check",
+    "db:create": "tsx prisma/database-utils.ts create",
+    "db:setup-dev": "tsx prisma/database-utils.ts setup-dev",
+    "db:setup-prod": "tsx prisma/database-utils.ts setup-prod",
+    "db:setup-production": "tsx prisma/production-setup.ts",
+    "db:setup-production-full": "tsx prisma/production-setup.ts --with-seed",
+    "db:studio": "prisma studio",
+    "db:validate": "prisma validate",
+    "db:format": "prisma format"
+  },
+  "devDependencies": {
+    "@prisma/client": "^7.8.0",
+    "@types/bcrypt": "^5.0.2",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "bcrypt": "^5.1.1",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "prettier": "^3.4.2",
+    "prisma": "^7.8.0",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

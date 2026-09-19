@@ -1,0 +1,151 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { api, formatCurrency } from '../lib/api';
+import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
+import Layout from '../components/Layout';
+
+const PAYMENT_METHODS = [
+  { id: 'cash', label: 'Cash', icon: '💵' },
+  { id: 'card', label: 'Card', icon: '💳' },
+  { id: 'upi', label: 'UPI', icon: '📱' },
+  { id: 'wallet', label: 'Wallet', icon: '👛' },
+] as const;
+
+export default function PaymentPage() {
+  const { token, outletId } = useAuthStore();
+  const { orderId, tableNumber, clear } = useCartStore();
+  const navigate = useNavigate();
+  const [method, setMethod] = useState<string>('cash');
+  const [settling, setSettling] = useState(false);
+  const [invoice, setInvoice] = useState<ReturnType<typeof api.settleOrder> extends Promise<infer T> ? T : never | null>(null);
+
+  const { data: order } = useQuery({
+    queryKey: ['order', orderId],
+    queryFn: () => api.getOrder(token!, outletId!, orderId!),
+    enabled: !!token && !!outletId && !!orderId,
+  });
+
+  useEffect(() => {
+    if (!token) navigate('/login');
+    if (!orderId) navigate('/tables');
+  }, [token, orderId, navigate]);
+
+  async function handleSettle() {
+    if (!orderId) return;
+    setSettling(true);
+    try {
+      const result = await api.settleOrder(token!, outletId!, orderId, method);
+      setInvoice(result);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Payment failed');
+    } finally {
+      setSettling(false);
+    }
+  }
+
+  function handleDone() {
+    clear();
+    navigate('/tables');
+  }
+
+  if (invoice) {
+    return (
+      <Layout title="Invoice">
+        <div className="max-w-md mx-auto bg-white rounded-xl border p-6 text-center">
+          <div className="text-green-600 text-5xl mb-4">✓</div>
+          <h2 className="text-2xl font-bold mb-2">Payment Successful</h2>
+          <p className="text-gray-500 mb-6">Table {tableNumber}</p>
+          <div className="text-left space-y-2 border-t border-b py-4 mb-6">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Invoice</span>
+              <span className="font-mono">{invoice.invoiceNumber}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Order</span>
+              <span>{invoice.orderNumber}</span>
+            </div>
+            <div className="flex justify-between font-bold text-lg">
+              <span>Total Paid</span>
+              <span className="text-orange-600">{formatCurrency(invoice.total)}</span>
+            </div>
+          </div>
+          <button
+            onClick={handleDone}
+            className="w-full bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700"
+          >
+            Back to Tables
+          </button>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout title={`Payment — Table ${tableNumber}`} showBack onBack={() => navigate('/order')}>
+      <div className="max-w-lg mx-auto">
+        {order && (
+          <div className="bg-white rounded-xl border p-6 mb-6">
+            <h3 className="font-semibold mb-4">Bill Summary</h3>
+            <ul className="space-y-2 mb-4">
+              {order.items.map((item) => (
+                <li key={item.id} className="flex justify-between text-sm">
+                  <span>
+                    {item.menuItemName} × {item.quantity}
+                  </span>
+                  <span>{formatCurrency(Number(item.unitPrice) * item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="space-y-1 text-sm border-t pt-3">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>{formatCurrency(order.subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Service Charge</span>
+                <span>{formatCurrency(order.serviceCharge)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>GST</span>
+                <span>{formatCurrency(order.taxAmount)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-lg pt-2">
+                <span>Total</span>
+                <span className="text-orange-600">{formatCurrency(order.total)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl border p-6">
+          <h3 className="font-semibold mb-4">Payment Method</h3>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            {PAYMENT_METHODS.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setMethod(m.id)}
+                className={`p-4 rounded-lg border-2 text-center transition ${
+                  method === m.id
+                    ? 'border-orange-500 bg-orange-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <span className="text-2xl">{m.icon}</span>
+                <p className="mt-1 font-medium">{m.label}</p>
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleSettle}
+            disabled={settling}
+            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+          >
+            {settling ? 'Processing...' : `Collect ${order ? formatCurrency(order.total) : ''}`}
+          </button>
+        </div>
+      </div>
+    </Layout>
+  );
+}

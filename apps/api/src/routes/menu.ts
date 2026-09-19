@@ -1,0 +1,158 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { authenticate, requireOutletAccess, requirePermission } from '../middleware/auth';
+import { emitToOutlet } from '../lib/socket';
+
+export const menuRouter = Router();
+menuRouter.use(authenticate);
+
+const categorySchema = z.object({
+  name: z.string().min(1),
+  displayOrder: z.number().int().optional(),
+  taxCategory: z.string().optional(),
+  outletId: z.string().uuid().optional(),
+});
+
+const menuItemSchema = z.object({
+  categoryId: z.string().uuid(),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  price: z.number().positive(),
+  imageUrl: z.string().url().optional(),
+  tags: z.array(z.string()).optional(),
+  stationId: z.string().uuid().optional(),
+  preparationTimeMinutes: z.number().int().positive().optional(),
+  taxCategory: z.string().optional(),
+  outletId: z.string().uuid().optional(),
+  modifiers: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.enum(['single', 'multiple']).optional(),
+        required: z.boolean().optional(),
+        options: z.array(
+          z.object({ id: z.string(), name: z.string(), priceAdjustment: z.number() })
+        ),
+      })
+    )
+    .optional(),
+});
+
+menuRouter.get('/', requireOutletAccess, async (req, res) => {
+  const tenantId = req.user!.tenantId;
+  const outletId = req.outletId as string;
+
+  const categories = await prisma.menuCategory.findMany({
+    where: {
+      tenantId,
+      outletId,
+      isActive: true,
+    },
+    orderBy: { displayOrder: 'asc' },
+    include: {
+      menuItems: {
+        where: { isAvailable: true, OR: [{ outletId: null }, { outletId }] },
+        orderBy: { name: 'asc' },
+      },
+    },
+  });
+
+  res.json({ categories });
+});
+
+menuRouter.post('/categories', requirePermission('manage_inventory'), async (req, res) => {
+  try {
+    const body = categorySchema.parse(req.body);
+    const category = await prisma.menuCategory.create({
+      data: {
+        tenantId: req.user!.tenantId,
+        outletId: (body.outletId ?? req.outletId) as string,
+        name: body.name,
+        displayOrder: body.displayOrder ?? 0,
+        taxCategory: body.taxCategory ?? 'food',
+      },
+    });
+    res.status(201).json(category);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+      return;
+    }
+    throw err;
+  }
+});
+
+menuRouter.post('/items', requirePermission('manage_inventory'), async (req, res) => {
+  try {
+    const body = menuItemSchema.parse(req.body);
+    const item = await prisma.menuItem.create({
+      data: {
+        tenantId: req.user!.tenantId,
+        outletId: body.outletId ?? (req.outletId as string),
+        categoryId: body.categoryId,
+        name: body.name,
+        description: body.description,
+        price: body.price,
+        image: body.imageUrl,
+        tags: body.tags ?? [],
+        stationId: body.stationId,
+        preparationTimeMinutes: body.preparationTimeMinutes ?? 15,
+        taxCategory: body.taxCategory ?? 'food',
+        modifiers: body.modifiers as any,
+      },
+    });
+
+    emitToOutlet(req.user!.tenantId, req.outletId as string, 'menu:item:updated', item);
+    res.status(201).json(item);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+      return;
+    }
+    throw err;
+  }
+});
+
+menuRouter.patch('/items/:id', requirePermission('manage_inventory'), async (req, res) => {
+  const { price, isAvailable, name, description, tags } = req.body as Record<string, unknown>;
+  const item = await prisma.menuItem.updateMany({
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId },
+    data: {
+      ...(price !== undefined && { price: Number(price) }),
+      ...(isAvailable !== undefined && { isAvailable: Boolean(isAvailable) }),
+      ...(name !== undefined && { name: String(name) }),
+      ...(description !== undefined && { description: String(description) }),
+      ...(tags !== undefined && { tags: tags as string[] }),
+    },
+  });
+
+  if (item.count === 0) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Menu item not found' } });
+    return;
+  }
+
+  const updated = await prisma.menuItem.findUnique({
+    where: { id: req.params.id as string },
+  });
+  emitToOutlet(req.user!.tenantId, req.outletId as string, 'menu:item:updated', updated);
+  res.json(updated);
+});
+
+menuRouter.patch('/items/:id/availability', requirePermission('manage_inventory'), async (req, res) => {
+  const { isAvailable } = req.body as { isAvailable: boolean };
+  const updated = await prisma.menuItem.updateMany({
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId },
+    data: { isAvailable: Boolean(isAvailable) },
+  });
+
+  if (updated.count === 0) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Menu item not found' } });
+    return;
+  }
+
+  const item = await prisma.menuItem.findUnique({ where: { id: req.params.id as string } });
+  emitToOutlet(req.user!.tenantId, req.outletId as string, 'menu:item:availability', item);
+  res.json(item);
+});
