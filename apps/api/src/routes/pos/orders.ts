@@ -8,8 +8,11 @@ import { createOrder, settleOrder, generateKOT, updateOrderStatus, voidOrder } f
 export const posOrdersRouter = Router();
 posOrdersRouter.use(authenticate, requireOutletAccess);
 
-const createOrderSchema = z.object({
+export const createOrderSchema = z.object({
   tableId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
+  clientOperationId: z.string().uuid().optional(),
+  clientCreatedAt: z.coerce.date().optional(),
   type: z.enum(['dine-in', 'takeaway', 'delivery']).optional(),
   source: z.enum(['pos', 'captain', 'qr', 'online', 'aggregator']).optional(),
   notes: z.string().optional(),
@@ -62,6 +65,10 @@ posOrdersRouter.get('/invoices/next-number', requirePermission('process_payments
   res.json({ nextSequence: (seq?.lastSequence ?? 0) + 1, year });
 }));
 
+posOrdersRouter.get('/:id/invoice', requirePermission('view_orders'), asyncHandler(async (req,res) => {
+  const order=await prisma.order.findFirst({where:{id:req.params.id as string,tenantId:req.user!.tenantId,outletId:req.outletId!},include:{items:true,bills:{orderBy:{createdAt:'desc'},take:1}}});if(!order||!order.bills[0]){res.status(404).json({error:{code:'NOT_FOUND',message:'Invoice not found'}});return;}const tenant=await prisma.tenant.findUnique({where:{id:req.user!.tenantId}});res.json({...order,invoiceNumber:order.bills[0].billNumber,gstin:tenant?.gstin,restaurantName:tenant?.name,bill:order.bills[0]});
+}));
+
 posOrdersRouter.get('/:id', requirePermission('view_orders'), asyncHandler(async (req, res) => {
   const order = await prisma.order.findFirst({
     where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId as string },
@@ -81,7 +88,8 @@ posOrdersRouter.post('/', requirePermission('create_orders'), asyncHandler(async
       req.user!.tenantId,
       req.outletId as string,
       req.user!.id,
-      input as any
+      input as any,
+      input.clientOperationId ? { id: input.clientOperationId, createdAt: input.clientCreatedAt ?? new Date() } : undefined
     );
     res.status(201).json(order);
   } catch (err) {

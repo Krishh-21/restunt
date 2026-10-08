@@ -1,11 +1,13 @@
 #!/usr/bin/env tsx
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 interface DatabaseConfig {
   host: string;
@@ -61,7 +63,7 @@ export async function createDatabase(): Promise<void> {
   const originalUrl = process.env.DATABASE_URL;
   process.env.DATABASE_URL = adminUrl;
   
-  const adminPrisma = new PrismaClient();
+  const adminPrisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
   try {
     // Check if database exists

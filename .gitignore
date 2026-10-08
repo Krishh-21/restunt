@@ -43,8 +43,6 @@ Thumbs.db
 .turbo/
 
 # Prisma
-prisma/migrations/
-!prisma/migrations/.gitkeep
 
 # Build artifacts
 *.tsbuildinfo

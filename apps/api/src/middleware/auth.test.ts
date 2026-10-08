@@ -1,3 +1,4 @@
+jest.mock('../lib/prisma', () => ({ prisma: { user: { findFirst: jest.fn() } } }));
 import { requirePermission, requireOutletAccess } from './auth';
 import type { Request, Response } from 'express';
 function request(role: string) {

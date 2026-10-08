@@ -10,6 +10,7 @@ export const authRouter = Router();
 
 const loginSchema = z.object({
   username: z.string().min(1),
+  tenantSubdomain: z.string().min(1).optional(),
   password: z.string().min(1),
   outletId: z.string().uuid().optional(),
 });
@@ -17,9 +18,11 @@ const loginSchema = z.object({
 authRouter.post('/login', asyncHandler(async (req, res) => {
   try {
     const body = loginSchema.parse(req.body);
-    const user = await prisma.user.findFirst({
-      where: { username: body.username, isActive: true },
-    });
+    const tenant = body.tenantSubdomain ? await prisma.tenant.findUnique({ where: { subdomain: body.tenantSubdomain } }) : null;
+    const users = body.tenantSubdomain && !tenant ? [] : await prisma.user.findMany({ where: { username: body.username, isActive: true, ...(tenant ? { tenantId: tenant.id } : {}) }, take: 2 });
+    if (users.length > 1) { res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'Enter the restaurant subdomain to select your account' } }); return; }
+    const user = users[0];
+
 
     if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
       res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid username or password' } });

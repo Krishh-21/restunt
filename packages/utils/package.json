@@ -10,5 +10,9 @@
   },
   "devDependencies": {
     "typescript": "^5.1.0"
-  }
+  },
+  "dependencies": {
+    "dexie": "^3.2.4"
+  },
+  "type": "module"
 }

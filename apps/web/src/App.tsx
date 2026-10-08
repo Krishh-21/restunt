@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore';
 import LoginPage from './pages/LoginPage';
 import TablesPage from './pages/TablesPage';
 import OrderPage from './pages/OrderPage';
+import ManagementPage from './pages/ManagementPage';
 import PaymentPage from './pages/PaymentPage';
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route path="/manage" element={<PrivateRoute><ManagementPage /></PrivateRoute>} />
           <Route path="/" element={<Navigate to="/tables" replace />} />
         </Routes>
       </BrowserRouter>

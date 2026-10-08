@@ -7,8 +7,17 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import { JWT_SECRET, type JwtPayload } from './middleware/auth';
 
 import { prisma, disconnectPrisma } from './lib/prisma';
+import { paymentsRouter, paymentWebhooks } from './routes/payments';
+import { publicRouter } from './routes/public';
+import { syncRouter } from './routes/sync';
+import { analyticsRouter } from './routes/analytics';
+import { usersRouter, outletsRouter, auditRouter } from './routes/management';
+import { accountingRouter, drawerRouter } from './routes/accounting';
+import { crmRouter } from './routes/crm';
+import { procurementRouter } from './routes/procurement';
 import { inventoryRouter } from './routes/inventory';
 import { ZodError } from 'zod';
 import { authRouter } from './routes/auth';
@@ -28,10 +37,10 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
 
 export const io = new SocketIOServer(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST', 'PATCH'] },
+  cors: { origin: process.env.CORS_ORIGIN?.split(',') ?? '*', methods: ['GET', 'POST', 'PATCH'] },
 });
 
 declare global {
@@ -45,7 +54,10 @@ declare global {
 }
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') ?? '*' }));
+app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/payments/razorpay/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/payments', paymentWebhooks);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -62,20 +74,37 @@ app.use('/api/pos/tables', posTablesRouter);
 app.use('/api/pos/reservations', posReservationsRouter);
 app.use('/api/kds', kdsRouter);
 app.use('/api/inventory', inventoryRouter);
+app.use('/api/inventory', procurementRouter);
+app.use('/api/crm', crmRouter);
+app.use('/api/accounting', accountingRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/payments', paymentsRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/public', publicRouter);
+app.use('/api/sync', syncRouter);
+app.use('/api/outlets', outletsRouter);
+app.use('/api/audit', auditRouter);
+app.use('/api/pos/cash-drawer', drawerRouter);
 
 setSocketIO(io);
 
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth.token as string | undefined;
   if (!token) return next(new Error('Authentication required'));
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as AuthUser & { outletId?: string };
+    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    if (!payload.iat || Date.now() - payload.iat * 1000 > 30*60*1000) return next(new Error('Session expired'));
+    const current = await prisma.user.findFirst({where:{id:payload.id,tenantId:payload.tenantId,isActive:true}});
+    if (!current) return next(new Error('Account inactive'));
+    payload.outletIds = current.outletAssignments;
     socket.data.user = payload;
     socket.data.tenantId = payload.tenantId;
     const requestedOutlet = socket.handshake.auth.outletId as string | undefined;
     const outletId = requestedOutlet ?? payload.outletId ?? payload.outletIds[0];
     if (!outletId || !payload.outletIds.includes(outletId)) return next(new Error('No outlet access'));
     socket.data.outletId = outletId;
+    const expires = setTimeout(() => socket.disconnect(true), Math.max(1, payload.iat * 1000 + 30*60*1000 - Date.now()));
+    socket.on('disconnect', () => clearTimeout(expires));
     next();
   } catch {
     next(new Error('Invalid token'));

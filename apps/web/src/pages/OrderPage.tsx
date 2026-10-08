@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api, formatCurrency } from '../lib/api';
+import { api, formatCurrency, type MenuItemResponse } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import Layout from '../components/Layout';
 
 export default function OrderPage() {
   const { token, outletId } = useAuthStore();
-  const { tableId, tableNumber, items, addItem, updateQuantity, subtotal, setOrderId } =
+  const { tableId, tableNumber, items, addItem, updateQuantity, subtotal, setOrderId, clear } =
     useCartStore();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState<MenuItemResponse | null>(null);
 
   const { data: menuData } = useQuery({
     queryKey: ['menu', outletId],
@@ -36,8 +37,10 @@ export default function OrderPage() {
           menuItemId: i.menuItem.id,
           quantity: i.quantity,
           specialInstructions: i.specialInstructions,
+          modifiers: i.modifiers,
         })),
       });
+      if (order.pendingSync) { clear(); navigate('/tables'); return; }
       await api.generateKOT(token!, outletId!, order.id);
       setOrderId(order.id);
       navigate('/payment');
@@ -52,6 +55,8 @@ export default function OrderPage() {
 
   return (
     <Layout title={`Table ${tableNumber}`} showBack onBack={() => navigate('/tables')}>
+      {selected && <div role="dialog" aria-label="Customize item" className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><form className="bg-white rounded-xl p-6 max-w-md w-full grid gap-4" onSubmit={event => {event.preventDefault();const values=new FormData(event.currentTarget);const modifiers:{name:string;option:string;priceAdjustment:number}[]=[];for(const group of selected.modifiers??[])for(const value of values.getAll(group.name)){if(!value)continue;const option=group.options.find(o=>o.name===value)!;modifiers.push({name:group.name,option:option.name,priceAdjustment:option.priceAdjustment});}addItem(selected,modifiers,String(values.get('instructions')??''));setSelected(null);}}><h2 className="text-xl font-semibold">{selected.name}</h2>{selected.modifiers?.map(group=><label key={group.name}>{group.name}{group.required?' *':''}<select name={group.name} multiple={group.type==='multiple'} required={group.required} className="block border rounded p-3 w-full"><option value="">Choose</option>{group.options.map(option=><option key={option.name} value={option.name}>{option.name} / {formatCurrency(option.priceAdjustment)}</option>)}</select></label>)}<label>Special instructions<input name="instructions" className="block border rounded p-3 w-full"/></label><div className="flex gap-3"><button type="button" onClick={()=>setSelected(null)} className="border rounded p-3">Cancel</button><button className="bg-orange-600 text-white rounded p-3">Add item</button></div></form></div>}
+
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 space-y-6">
           {categories.map((cat) => (
@@ -61,7 +66,7 @@ export default function OrderPage() {
                 {cat.items.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => addItem(item)}
+                    onClick={() => setSelected(item)}
                     className="text-left p-4 bg-white rounded-lg border hover:border-orange-400 hover:shadow transition"
                   >
                     <div className="flex justify-between items-start">
@@ -102,7 +107,7 @@ export default function OrderPage() {
             ) : (
               <ul className="space-y-3 mb-4 max-h-64 overflow-y-auto">
                 {items.map((item) => (
-                  <li key={item.menuItem.id} className="flex justify-between items-center">
+                  <li key={item.cartId} className="flex justify-between items-center">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{item.menuItem.name}</p>
                       <p className="text-sm text-gray-500">
@@ -111,14 +116,14 @@ export default function OrderPage() {
                     </div>
                     <div className="flex items-center gap-2 ml-2">
                       <button
-                        onClick={() => updateQuantity(item.menuItem.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.cartId, item.quantity - 1)}
                         className="w-8 h-8 rounded bg-gray-100 hover:bg-gray-200"
                       >
                         −
                       </button>
                       <span className="w-6 text-center">{item.quantity}</span>
                       <button
-                        onClick={() => updateQuantity(item.menuItem.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.cartId, item.quantity + 1)}
                         className="w-8 h-8 rounded bg-gray-100 hover:bg-gray-200"
                       >
                         +

@@ -3,10 +3,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireOutletAccess, requirePermission } from '../middleware/auth';
+import { fail } from '../lib/domain';
 import { emitToOutlet } from '../lib/socket';
 
 export const menuRouter = Router();
-menuRouter.use(authenticate);
+menuRouter.use(authenticate, requireOutletAccess);
 
 const categorySchema = z.object({
   name: z.string().min(1),
@@ -65,6 +66,8 @@ menuRouter.get('/', requireOutletAccess, asyncHandler(async (req, res) => {
 menuRouter.post('/categories', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
   try {
     const body = categorySchema.parse(req.body);
+    const targetOutlet = body.outletId ?? req.outletId!;
+    if (!req.user!.outletIds.includes(targetOutlet) || !(await prisma.outlet.findFirst({where:{id:targetOutlet,tenantId:req.user!.tenantId}}))) fail('Outlet access denied',403);
     const category = await prisma.menuCategory.create({
       data: {
         tenantId: req.user!.tenantId,
@@ -87,6 +90,10 @@ menuRouter.post('/categories', requirePermission('manage_inventory'), asyncHandl
 menuRouter.post('/items', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
   try {
     const body = menuItemSchema.parse(req.body);
+    const targetOutlet = body.outletId ?? req.outletId!;
+    if (!req.user!.outletIds.includes(targetOutlet)) fail('Outlet access denied',403);
+    if (!(await prisma.menuCategory.findFirst({where:{id:body.categoryId,tenantId:req.user!.tenantId,outletId:targetOutlet}}))) fail('Category not found in outlet',404);
+    if (body.stationId && !(await prisma.kitchenStation.findFirst({where:{id:body.stationId,tenantId:req.user!.tenantId,outletId:targetOutlet}}))) fail('Station not found in outlet',404);
     const item = await prisma.menuItem.create({
       data: {
         tenantId: req.user!.tenantId,
@@ -115,9 +122,9 @@ menuRouter.post('/items', requirePermission('manage_inventory'), asyncHandler(as
 }));
 
 menuRouter.patch('/items/:id', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
-  const { price, isAvailable, name, description, tags } = req.body as Record<string, unknown>;
+  const { price, isAvailable, name, description, tags } = z.object({price:z.number().positive().optional(),isAvailable:z.boolean().optional(),name:z.string().min(1).optional(),description:z.string().optional(),tags:z.array(z.string()).optional()}).parse(req.body);
   const item = await prisma.menuItem.updateMany({
-    where: { id: req.params.id as string, tenantId: req.user!.tenantId },
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId },
     data: {
       ...(price !== undefined && { price: Number(price) }),
       ...(isAvailable !== undefined && { isAvailable: Boolean(isAvailable) }),
@@ -140,9 +147,9 @@ menuRouter.patch('/items/:id', requirePermission('manage_inventory'), asyncHandl
 }));
 
 menuRouter.patch('/items/:id/availability', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
-  const { isAvailable } = req.body as { isAvailable: boolean };
+  const { isAvailable } = z.object({isAvailable:z.boolean()}).parse(req.body);
   const updated = await prisma.menuItem.updateMany({
-    where: { id: req.params.id as string, tenantId: req.user!.tenantId },
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId },
     data: { isAvailable: Boolean(isAvailable) },
   });
 

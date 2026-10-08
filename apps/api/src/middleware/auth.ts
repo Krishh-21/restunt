@@ -1,9 +1,11 @@
+import { prisma } from '../lib/prisma';
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import type { AuthUser, UserRole } from '@dinely/types';
 import { PERMISSIONS } from '@dinely/types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+export const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) throw new Error('Set JWT_SECRET to at least 32 characters in production');
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 export interface JwtPayload extends AuthUser {
@@ -15,7 +17,7 @@ export function signToken(user: AuthUser, outletId: string): string {
   return jwt.sign({ ...user, outletId }, JWT_SECRET, { expiresIn: '8h' });
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
@@ -30,14 +32,16 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
       return;
     }
 
+    const current = await prisma.user.findFirst({ where: { id: payload.id, tenantId: payload.tenantId, isActive: true } });
+    if (!current) { res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Account is inactive or no longer exists' } }); return; }
     req.user = {
       id: payload.id,
       tenantId: payload.tenantId,
       username: payload.username,
       email: payload.email,
       fullName: payload.fullName,
-      role: payload.role,
-      outletIds: payload.outletIds,
+      role: current.role as UserRole,
+      outletIds: current.outletAssignments,
     };
     req.tenantId = payload.tenantId;
     req.outletId =
@@ -54,8 +58,15 @@ const permissionNames: Record<string, string[]> = {
   update_order_status: ['orders:update', 'orders:update-status'],
   view_tables: ['tables:view', 'tables:manage'],
   manage_inventory: ['inventory:manage'],
-  process_payments: ['payments:process'],
   view_kds: ['kds:view', 'orders:update'],
+  'process_payments': ['payments:process', 'cash-drawer:manage'],
+  'customers:view': ['customers:view', 'customers:manage'],
+  'customers:create': ['customers:create', 'customers:manage'],
+  'customers:update': ['customers:update', 'customers:manage'],
+  'loyalty:award': ['loyalty:award', 'customers:manage'],
+  'loyalty:redeem': ['loyalty:redeem', 'customers:manage'],
+  'cash-drawer:open': ['cash-drawer:open', 'cash-drawer:manage'],
+  'cash-drawer:close': ['cash-drawer:close', 'cash-drawer:manage'],
   'inventory:view': ['inventory:view', 'inventory:manage'],
   manage_users: ['users:update'],
 };

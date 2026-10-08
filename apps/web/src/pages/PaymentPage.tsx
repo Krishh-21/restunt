@@ -55,7 +55,7 @@ export default function PaymentPage() {
       <Layout title="Invoice">
         <div className="max-w-md mx-auto bg-white rounded-xl border p-6 text-center">
           <div className="text-green-600 text-5xl mb-4">✓</div>
-          <h2 className="text-2xl font-bold mb-2">Payment Successful</h2>
+          <h2 className="text-2xl font-bold mb-2">Payment Successful</h2><button onClick={()=>window.print()} className="border rounded p-2 my-3 print:hidden">Print invoice</button>
           <p className="text-gray-500 mb-6">Table {tableNumber}</p>
           <div className="text-left space-y-2 border-t border-b py-4 mb-6">
             <div className="flex justify-between">

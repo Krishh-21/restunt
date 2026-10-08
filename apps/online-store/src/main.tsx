@@ -1,0 +1,1 @@
+import React from 'react';import {createRoot} from 'react-dom/client';import {Storefront} from '@dinely/ui';createRoot(document.getElementById('root')!).render(<React.StrictMode><Storefront qr={false}/></React.StrictMode>);

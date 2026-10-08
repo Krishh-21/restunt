@@ -5,14 +5,16 @@
   "description": "Multi-tenant SaaS Restaurant Operating System",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/types",
+    "packages/ui",
+    "packages/utils"
   ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "test": "turbo run test",
+    "test": "npm run test:core",
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

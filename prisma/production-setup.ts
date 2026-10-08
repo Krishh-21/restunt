@@ -6,6 +6,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 
@@ -31,6 +33,7 @@ class ProductionDatabaseSetup {
     };
 
     this.prisma = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
       log: ['error', 'warn'],
       errorFormat: 'minimal'
     });

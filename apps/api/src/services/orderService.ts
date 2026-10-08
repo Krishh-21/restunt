@@ -1,3 +1,5 @@
+import { awardLoyalty } from './loyaltyService';
+import { deductRecipes } from './stockService';
 import { resolveModifiers } from './orderModifiers';
 import { prisma } from '../lib/prisma';
 import {
@@ -76,11 +78,14 @@ export async function createOrder(
   tenantId: string,
   outletId: string,
   userId: string,
-  input: CreateOrderInput
+  input: CreateOrderInput,
+  operation?: { id: string; createdAt: Date }
 ) {
+  if (operation) { const existing = await prisma.order.findFirst({ where: { tenantId, outletId, clientOperationId: operation.id }, include: { items: true } }); if (existing) return existing; }
   const outlet = await prisma.outlet.findFirst({ where: { id: outletId, tenantId } });
   if (!outlet) throw new Error('Outlet not found');
 
+  if (input.customerId && !(await prisma.customer.findFirst({ where: { id: input.customerId, tenantId } }))) throw new Error('Customer not found');
   const settings = parseSettings(outlet.settings);
   const menuItemIds = [...new Set(input.items.map((i) => i.menuItemId))];
   const menuItems = await prisma.menuItem.findMany({
@@ -122,6 +127,7 @@ export async function createOrder(
   const order = await prisma.$transaction(async (tx) => {
     // Serialize numbering within an outlet; rolled-back orders consume no number.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId + ':' + outletId}))::text`;
+    if (operation) { const existing = await tx.order.findFirst({ where: { tenantId, outletId, clientOperationId: operation.id }, include: { items: true } }); if (existing) return existing; }
     const seq = await nextOrderSequence(tx, tenantId, outletId);
     const orderNumber = generateOrderNumber(settings.tablePrefix, new Date().getFullYear(), seq);
     const created = await tx.order.create({
@@ -129,7 +135,10 @@ export async function createOrder(
         tenantId,
         outletId,
         orderNumber,
+        clientOperationId: operation?.id,
+        clientCreatedAt: operation?.createdAt,
         tableId: input.tableId,
+        customerId: input.customerId,
         source: (input.source?.toUpperCase() as 'POS') ?? 'POS',
         type: (input.type?.toUpperCase().replace('-', '_') as 'DINE_IN') ?? 'DINE_IN',
         status: 'DRAFT',
@@ -151,7 +160,6 @@ export async function createOrder(
               unitPrice: menu.price,
               modifiers: (i.modifiers ?? []) as any,
               specialInstructions: i.specialInstructions,
-              stationId: menu.stationId,
             };
           }),
         },
@@ -159,7 +167,7 @@ export async function createOrder(
       include: { items: true },
     });
 
-    if (input.tableId) {
+    if (input.tableId && !['qr', 'online'].includes(input.source ?? 'pos')) {
       const occupied = await tx.table.updateMany({
         where: {
           id: input.tableId,
@@ -176,7 +184,7 @@ export async function createOrder(
     return created;
   });
 
-  if (input.tableId)
+  if (input.tableId && !['qr', 'online'].includes(input.source ?? 'pos'))
     emitToOutlet(tenantId, outletId, 'table:occupied', {
       tableId: input.tableId,
       orderId: order.id,
@@ -256,6 +264,15 @@ export async function settleOrder(
       data: { status: 'SETTLED' },
     });
     if (claim.count !== 1) throw new Error('Order already settled or voided');
+    await deductRecipes(tx, tenantId, outletId, orderId, order.createdByUserId, order.items);
+    if (order.customerId) await awardLoyalty(tx, tenantId, order.customerId, orderId, totals.total);
+    if (input.paymentMethod.toUpperCase() === 'CASH') {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId + ':drawer:' + outletId}))::text`;
+      const drawer = await tx.cashDrawerSession.findFirst({ where: { tenantId, outletId, status: 'OPEN' } });
+      if (!drawer) throw new Error('Open a cash drawer before accepting cash');
+      await tx.cashDrawerSession.update({ where: { id: drawer.id, status: 'OPEN' }, data: { expectedClosingAmount: { increment: totals.total } } });
+    }
+    await tx.journalEntry.create({ data: { tenantId, outletId, orderId, revenue: totals.total - totals.taxAmount, gst: totals.taxAmount, stream: order.source === 'AGGREGATOR' ? 'AGGREGATOR' : order.type } });
     const invSeq = await nextInvoiceSequence(tx, tenantId, outletId);
     const invoiceNumber = generateInvoiceNumber(
       settings.tablePrefix,
@@ -281,6 +298,10 @@ export async function settleOrder(
       include: { items: true },
     });
 
+    if (input.paymentMethod.toUpperCase() === 'ONLINE') {
+      const verified = await tx.payment.findFirst({ where: { tenantId, orderId, status: 'PAID', amount: totals.total } });
+      if (!verified) throw new Error('Online payment has not been verified by the gateway');
+    } else {
     await tx.payment.create({
       data: {
         tenantId,
@@ -291,6 +312,8 @@ export async function settleOrder(
         gatewayTransactionId: input.paymentTransactionId,
       },
     });
+    }
+
 
     await tx.bill.create({
       data: {
@@ -397,6 +420,7 @@ export async function voidOrder(
   if (!order) throw new Error('Order not found');
   if (order.status === 'VOIDED') throw new Error('Order is already voided');
   if (order.status === 'SETTLED') throw new Error('Cannot void a settled order');
+  if (order.paymentStatus === 'PAID') throw new Error('Paid orders require a refund before voiding');
 
   // Verify that the approvedByUserId exists and is a manager/admin
   const manager = await prisma.user.findFirst({
