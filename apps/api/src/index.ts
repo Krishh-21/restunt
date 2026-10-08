@@ -62,7 +62,8 @@ declare global {
 }
 
 app.use(helmet({contentSecurityPolicy:{directives:{'upgrade-insecure-requests':config.NODE_ENV==='production'?[]:null,'script-src':["'self'",'https://checkout.razorpay.com'],'frame-src':["'self'",'https://api.razorpay.com','https://checkout.razorpay.com'],'img-src':["'self'",'data:','https:'],'connect-src':["'self'",'https:','wss:'], 'style-src':["'self'","'unsafe-inline'"]}}}));
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',').map(origin=>origin.trim()) ?? '*' }));
+app.use('/api',(_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
+app.use('/api',cors({ origin: process.env.CORS_ORIGIN?.split(',').map(origin=>origin.trim()) ?? '*' }));
 app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/payments/razorpay/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/payments', paymentWebhooks);
