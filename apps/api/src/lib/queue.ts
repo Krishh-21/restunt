@@ -1,3 +1,9 @@
+import {
+  sendWhatsApp,
+  verifyInventoryDeduction,
+  reconcilePayment,
+  backupUnavailable,
+} from '../services/jobProcessors';
 import Queue from 'bull';
 import Redis, { Cluster } from 'ioredis';
 import { redisClient, createRedisInstance } from './redis';
@@ -23,7 +29,7 @@ export const defaultJobOptions: Queue.JobOptions = {
     delay: 1000, // Starts at 1000ms delay, doubling every attempt
   },
   removeOnComplete: true, // Clean up completed jobs to save space
-  removeOnFail: false,   // Keep failed jobs for manual auditing or retries
+  removeOnFail: false, // Keep failed jobs for manual auditing or retries
 };
 
 const createQueue = (name: string): Queue.Queue => {
@@ -39,7 +45,10 @@ const createQueue = (name: string): Queue.Queue => {
           return getSharedSubscriber();
         case 'bclient':
           // Bull needs a unique blocking connection (bclient) per queue
-          const bclient = createRedisInstance({ enableReadyCheck: false, maxRetriesPerRequest: null });
+          const bclient = createRedisInstance({
+            enableReadyCheck: false,
+            maxRetriesPerRequest: null,
+          });
           bclient.on('error', (err) => {
             console.error(`[Redis bclient - ${name}] Connection Error:`, err);
           });
@@ -63,7 +72,10 @@ const setupQueueListeners = (queue: Queue.Queue, name: string) => {
     console.log(`[Queue - ${name}] Job ${job.id} completed. Result:`, result);
   });
   queue.on('failed', (job, err) => {
-    console.error(`[Queue - ${name}] Job ${job.id} failed (Attempt ${job.attemptsMade}/${job.opts.attempts}). Error:`, err.message);
+    console.error(
+      `[Queue - ${name}] Job ${job.id} failed (Attempt ${job.attemptsMade}/${job.opts.attempts}). Error:`,
+      err.message
+    );
   });
 };
 
@@ -72,42 +84,11 @@ setupQueueListeners(inventoryQueue, 'Inventory Deduction');
 setupQueueListeners(paymentQueue, 'Payment Reconciliation');
 setupQueueListeners(backupQueue, 'Backup');
 
-// Define processors with simulated delays and error triggers for testing retry/backoff logic
-whatsappQueue.process(async (job) => {
-  console.log(`[Queue - WhatsApp] Processing job ${job.id} (Attempt ${job.attemptsMade + 1})`, job.data);
-  if (job.data.shouldFail) {
-    throw new Error('Simulated WhatsApp service connection failure');
-  }
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return { success: true, recipient: job.data.recipient };
-});
-
-inventoryQueue.process(async (job) => {
-  console.log(`[Queue - Inventory] Processing job ${job.id} (Attempt ${job.attemptsMade + 1})`, job.data);
-  if (job.data.shouldFail) {
-    throw new Error('Simulated database lock during inventory adjustment');
-  }
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return { success: true, orderId: job.data.orderId, itemsCount: job.data.items?.length ?? 0 };
-});
-
-paymentQueue.process(async (job) => {
-  console.log(`[Queue - Payment] Processing job ${job.id} (Attempt ${job.attemptsMade + 1})`, job.data);
-  if (job.data.shouldFail) {
-    throw new Error('Simulated gateway timeout during reconciliation');
-  }
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return { success: true, transactionId: job.data.transactionId };
-});
-
-backupQueue.process(async (job) => {
-  console.log(`[Queue - Backup] Processing job ${job.id} (Attempt ${job.attemptsMade + 1})`, job.data);
-  if (job.data.shouldFail) {
-    throw new Error('Simulated disk full / S3 write failure');
-  }
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return { success: true, backupPath: job.data.backupPath || 's3://dinely-backups/default.sql' };
-});
+// Provider errors remain failed jobs for the configured retry/backoff policy.
+whatsappQueue.process((job) => sendWhatsApp(job.data));
+inventoryQueue.process((job) => verifyInventoryDeduction(job.data));
+paymentQueue.process((job) => reconcilePayment(job.data));
+backupQueue.process(() => backupUnavailable());
 
 // Graceful close of all queues
 export const shutdownQueues = async (): Promise<void> => {

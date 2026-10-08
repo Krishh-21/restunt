@@ -42,7 +42,7 @@ export function calculateOrderTotals(input: OrderCalcInput): OrderCalcResult {
   const taxBreakdown: TaxBreakdownLine[] = [];
 
   let taxAmount = 0;
-  
+
   interface GroupedTax {
     category: string;
     cgst: number;
@@ -60,7 +60,7 @@ export function calculateOrderTotals(input: OrderCalcInput): OrderCalcResult {
     const rate =
       input.taxRates.find((r) => r.category === (item.taxCategory ?? 'food')) ?? defaultRate;
     const lineTax = lineTaxable * ((rate.cgst + rate.sgst) / 100);
-    
+
     const key = `${rate.category}_${rate.cgst}_${rate.sgst}`;
     if (!grouped[key]) {
       grouped[key] = {
@@ -79,7 +79,7 @@ export function calculateOrderTotals(input: OrderCalcInput): OrderCalcResult {
     const { cgst, sgst } = val;
     const label = `CGST ${cgst}% + SGST ${sgst}%`;
     const roundedAmount = round2(val.taxAmount);
-    
+
     taxBreakdown.push({
       label,
       rate: cgst + sgst,
@@ -90,7 +90,9 @@ export function calculateOrderTotals(input: OrderCalcInput): OrderCalcResult {
   }
   taxAmount = round2(taxAmount);
 
-  const discountAmount = round2(Math.min(input.discountAmount, subtotal + serviceCharge + taxAmount));
+  const discountAmount = round2(
+    Math.min(input.discountAmount, subtotal + serviceCharge + taxAmount)
+  );
   const total = round2(subtotal + serviceCharge + taxAmount - discountAmount);
 
   return { subtotal, serviceCharge, taxAmount, taxBreakdown, discountAmount, total };
@@ -100,7 +102,10 @@ export function generateOrderNumber(outletPrefix: string, year: number, sequence
   return `${outletPrefix}-${year}-${String(sequence).padStart(5, '0')}`;
 }
 
-export function generateInvoiceNumber(outletPrefix: string, year: number, sequence: number): string {
+export function generateInvoiceNumber(
+  outletPrefix: string,
+  year: number,
+  sequence: number
+): string {
   return `INV-${outletPrefix}-${year}-${String(sequence).padStart(5, '0')}`;
 }
-

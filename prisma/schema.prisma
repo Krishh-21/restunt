@@ -1,5 +1,5 @@
 // Prisma schema for Dinely Restaurant Operating System
-// Multi-tenant architecture with schema-per-tenant
+// Current implementation: shared tenant schema with explicit tenantId filters.
 
 generator client {
   provider        = "prisma-client-js"
@@ -526,6 +526,7 @@ model InventoryItem {
 
 // Recipe Specification
 model Recipe {
+  outletId      String             @map("outlet_id")
   id            String             @id @default(uuid())
   tenantId      String             @map("tenant_id")
   menuItemId    String             @map("menu_item_id")

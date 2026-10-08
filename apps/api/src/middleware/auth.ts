@@ -5,7 +5,11 @@ import type { AuthUser, UserRole } from '@dinely/types';
 import { PERMISSIONS } from '@dinely/types';
 
 export const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
-if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) throw new Error('Set JWT_SECRET to at least 32 characters in production');
+if (
+  process.env.NODE_ENV === 'production' &&
+  (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)
+)
+  throw new Error('Set JWT_SECRET to at least 32 characters in production');
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 export interface JwtPayload extends AuthUser {
@@ -32,8 +36,17 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    const current = await prisma.user.findFirst({ where: { id: payload.id, tenantId: payload.tenantId, isActive: true } });
-    if (!current) { res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Account is inactive or no longer exists' } }); return; }
+    const current = await prisma.user.findFirst({
+      where: { id: payload.id, tenantId: payload.tenantId, isActive: true },
+    });
+    if (!current) {
+      res
+        .status(401)
+        .json({
+          error: { code: 'UNAUTHORIZED', message: 'Account is inactive or no longer exists' },
+        });
+      return;
+    }
     req.user = {
       id: payload.id,
       tenantId: payload.tenantId,
@@ -59,7 +72,7 @@ const permissionNames: Record<string, string[]> = {
   view_tables: ['tables:view', 'tables:manage'],
   manage_inventory: ['inventory:manage'],
   view_kds: ['kds:view', 'orders:update'],
-  'process_payments': ['payments:process', 'cash-drawer:manage'],
+  process_payments: ['payments:process', 'cash-drawer:manage'],
   'customers:view': ['customers:view', 'customers:manage'],
   'customers:create': ['customers:create', 'customers:manage'],
   'customers:update': ['customers:update', 'customers:manage'],

@@ -48,7 +48,10 @@ describe('Order Calculation Property Tests', () => {
           // Correct total formula
           const expectedTotal = Math.max(
             0,
-            Math.round((result.subtotal + result.serviceCharge + result.taxAmount - result.discountAmount) * 100) / 100
+            Math.round(
+              (result.subtotal + result.serviceCharge + result.taxAmount - result.discountAmount) *
+                100
+            ) / 100
           );
           expect(result.total).toBeCloseTo(expectedTotal, 2);
         }
@@ -98,7 +101,12 @@ describe('Order Calculation Property Tests', () => {
 });
 
 it('supports tax category names containing underscores', () => {
-  const result = calculateOrderTotals({ items: [{ unitPrice: 100, quantity: 1, modifiers: [], taxCategory: 'hot_food' }], serviceChargePercent: 0, discountAmount: 0, taxRates: [{ category: 'hot_food', cgst: 2.5, sgst: 2.5 }] });
+  const result = calculateOrderTotals({
+    items: [{ unitPrice: 100, quantity: 1, modifiers: [], taxCategory: 'hot_food' }],
+    serviceChargePercent: 0,
+    discountAmount: 0,
+    taxRates: [{ category: 'hot_food', cgst: 2.5, sgst: 2.5 }],
+  });
   expect(result.taxAmount).toBe(5);
   expect(result.taxBreakdown[0].rate).toBe(5);
   expect(result.total).toBe(105);

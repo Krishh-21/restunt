@@ -195,12 +195,7 @@ describe('Validation Schemas', () => {
 describe('Type Guards and Validation Helpers', () => {
   describe('Phone validation', () => {
     it('should validate Indian phone numbers', () => {
-      const validPhones = [
-        '+919876543210',
-        '919876543210',
-        '9876543210',
-        '+1234567890123',
-      ];
+      const validPhones = ['+919876543210', '919876543210', '9876543210', '+1234567890123'];
 
       validPhones.forEach((phone) => {
         expect(phone).toBeValidPhone();

@@ -7,7 +7,9 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 interface DatabaseConfig {
   host: string;
@@ -27,7 +29,7 @@ function parseDatabaseUrl(url: string): DatabaseConfig {
     port: parseInt(parsed.port) || 5432,
     database: parsed.pathname.slice(1),
     username: parsed.username,
-    password: parsed.password
+    password: parsed.password,
   };
 }
 
@@ -55,15 +57,17 @@ export async function createDatabase(): Promise<void> {
   }
 
   const config = parseDatabaseUrl(databaseUrl);
-  
+
   // Connect to postgres database to create our target database
   const adminUrl = `postgresql://${config.username}:${config.password}@${config.host}:${config.port}/postgres`;
-  
+
   // Temporarily set the admin URL for connection
   const originalUrl = process.env.DATABASE_URL;
   process.env.DATABASE_URL = adminUrl;
-  
-  const adminPrisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+
+  const adminPrisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  });
 
   try {
     // Check if database exists
@@ -97,11 +101,11 @@ export async function setupDatabaseExtensions(): Promise<void> {
     // Create schemas
     await prisma.$executeRaw`CREATE SCHEMA IF NOT EXISTS "public"`;
     await prisma.$executeRaw`CREATE SCHEMA IF NOT EXISTS "tenant"`;
-    
+
     // Create extensions
     await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`;
     await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-    
+
     console.log('✅ Database schemas and extensions setup complete');
   } catch (error) {
     console.error('❌ Failed to setup database extensions:', error);
@@ -116,7 +120,7 @@ export async function runMigrations(): Promise<void> {
   return new Promise((resolve, reject) => {
     const migrate = spawn('npx', ['prisma', 'migrate', 'deploy'], {
       stdio: 'inherit',
-      shell: true
+      shell: true,
     });
 
     migrate.on('close', (code) => {
@@ -137,7 +141,7 @@ export async function seedDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
     const seed = spawn('tsx', ['prisma/seed.ts'], {
       stdio: 'inherit',
-      shell: true
+      shell: true,
     });
 
     seed.on('close', (code) => {
@@ -156,13 +160,13 @@ export async function seedDatabase(): Promise<void> {
  */
 export async function setupDevDatabase(): Promise<void> {
   console.log('🚀 Setting up development database...');
-  
+
   try {
     await createDatabase();
     await setupDatabaseExtensions();
     await runMigrations();
     await seedDatabase();
-    
+
     console.log('🎉 Development database setup complete!');
   } catch (error) {
     console.error('❌ Database setup failed:', error);
@@ -177,11 +181,11 @@ export async function setupDevDatabase(): Promise<void> {
  */
 export async function setupProductionDatabase(): Promise<void> {
   console.log('🚀 Setting up production database...');
-  
+
   try {
     await setupDatabaseExtensions();
     await runMigrations();
-    
+
     console.log('🎉 Production database setup complete!');
   } catch (error) {
     console.error('❌ Production database setup failed:', error);
@@ -194,30 +198,40 @@ export async function setupProductionDatabase(): Promise<void> {
 // CLI interface
 if (require.main === module) {
   const command = process.argv[2];
-  
+
   switch (command) {
     case 'check':
-      checkConnection().then(success => process.exit(success ? 0 : 1));
+      checkConnection().then((success) => process.exit(success ? 0 : 1));
       break;
     case 'create':
-      createDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+      createDatabase()
+        .then(() => process.exit(0))
+        .catch(() => process.exit(1));
       break;
     case 'setup-dev':
-      setupDevDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+      setupDevDatabase()
+        .then(() => process.exit(0))
+        .catch(() => process.exit(1));
       break;
     case 'setup-prod':
-      setupProductionDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+      setupProductionDatabase()
+        .then(() => process.exit(0))
+        .catch(() => process.exit(1));
       break;
     case 'migrate':
-      runMigrations().then(() => process.exit(0)).catch(() => process.exit(1));
+      runMigrations()
+        .then(() => process.exit(0))
+        .catch(() => process.exit(1));
       break;
     case 'seed':
-      seedDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+      seedDatabase()
+        .then(() => process.exit(0))
+        .catch(() => process.exit(1));
       break;
     default:
       console.log('Available commands:');
       console.log('  check      - Check database connection');
-      console.log('  create     - Create database if it doesn\'t exist');
+      console.log("  create     - Create database if it doesn't exist");
       console.log('  setup-dev  - Full development setup (create, migrate, seed)');
       console.log('  setup-prod - Production setup (migrate only)');
       console.log('  migrate    - Run database migrations');

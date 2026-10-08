@@ -24,7 +24,7 @@ expect.extend({
   toBeValidUUID(received: string) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const pass = uuidRegex.test(received);
-    
+
     if (pass) {
       return {
         message: () => `expected ${received} not to be a valid UUID`,
@@ -37,10 +37,10 @@ expect.extend({
       };
     }
   },
-  
+
   toBeValidEmail(received: string) {
     const pass = EmailSchema.safeParse(received).success;
-    
+
     if (pass) {
       return {
         message: () => `expected ${received} not to be a valid email`,
@@ -53,10 +53,10 @@ expect.extend({
       };
     }
   },
-  
+
   toBeValidPhone(received: string) {
     const pass = PhoneSchema.safeParse(received).success;
-    
+
     if (pass) {
       return {
         message: () => `expected ${received} not to be a valid phone number`,

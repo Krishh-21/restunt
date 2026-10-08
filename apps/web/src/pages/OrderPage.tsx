@@ -8,8 +8,17 @@ import Layout from '../components/Layout';
 
 export default function OrderPage() {
   const { token, outletId } = useAuthStore();
-  const { tableId, tableNumber, items, addItem, updateQuantity, subtotal, setOrderId, clear } =
-    useCartStore();
+  const {
+    tableId,
+    tableNumber,
+    orderId,
+    items,
+    addItem,
+    updateQuantity,
+    subtotal,
+    setOrderId,
+    clear,
+  } = useCartStore();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -31,18 +40,24 @@ export default function OrderPage() {
     setSubmitting(true);
     setError('');
     try {
-      const order = await api.createOrder(token!, outletId!, {
-        tableId: tableId!,
-        items: items.map((i) => ({
-          menuItemId: i.menuItem.id,
-          quantity: i.quantity,
-          specialInstructions: i.specialInstructions,
-          modifiers: i.modifiers,
-        })),
-      });
-      if (order.pendingSync) { clear(); navigate('/tables'); return; }
-      await api.generateKOT(token!, outletId!, order.id);
+      const order = orderId
+        ? { id: orderId, pendingSync: false }
+        : await api.createOrder(token!, outletId!, {
+            tableId: tableId!,
+            items: items.map((i) => ({
+              menuItemId: i.menuItem.id,
+              quantity: i.quantity,
+              specialInstructions: i.specialInstructions,
+              modifiers: i.modifiers,
+            })),
+          });
+      if (order.pendingSync) {
+        clear();
+        navigate('/tables');
+        return;
+      }
       setOrderId(order.id);
+      await api.generateKOT(token!, outletId!, order.id);
       navigate('/payment');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create order');
@@ -55,7 +70,69 @@ export default function OrderPage() {
 
   return (
     <Layout title={`Table ${tableNumber}`} showBack onBack={() => navigate('/tables')}>
-      {selected && <div role="dialog" aria-label="Customize item" className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><form className="bg-white rounded-xl p-6 max-w-md w-full grid gap-4" onSubmit={event => {event.preventDefault();const values=new FormData(event.currentTarget);const modifiers:{name:string;option:string;priceAdjustment:number}[]=[];for(const group of selected.modifiers??[])for(const value of values.getAll(group.name)){if(!value)continue;const option=group.options.find(o=>o.name===value)!;modifiers.push({name:group.name,option:option.name,priceAdjustment:option.priceAdjustment});}addItem(selected,modifiers,String(values.get('instructions')??''));setSelected(null);}}><h2 className="text-xl font-semibold">{selected.name}</h2>{selected.modifiers?.map(group=><label key={group.name}>{group.name}{group.required?' *':''}<select name={group.name} multiple={group.type==='multiple'} required={group.required} className="block border rounded p-3 w-full"><option value="">Choose</option>{group.options.map(option=><option key={option.name} value={option.name}>{option.name} / {formatCurrency(option.priceAdjustment)}</option>)}</select></label>)}<label>Special instructions<input name="instructions" className="block border rounded p-3 w-full"/></label><div className="flex gap-3"><button type="button" onClick={()=>setSelected(null)} className="border rounded p-3">Cancel</button><button className="bg-orange-600 text-white rounded p-3">Add item</button></div></form></div>}
+      {selected && (
+        <div
+          role="dialog"
+          aria-label="Customize item"
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+        >
+          <form
+            className="bg-white rounded-xl p-6 max-w-md w-full grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const values = new FormData(event.currentTarget);
+              const modifiers: { name: string; option: string; priceAdjustment: number }[] = [];
+              for (const group of selected.modifiers ?? [])
+                for (const value of values.getAll(group.name)) {
+                  if (!value) continue;
+                  const option = group.options.find((o) => o.name === value)!;
+                  modifiers.push({
+                    name: group.name,
+                    option: option.name,
+                    priceAdjustment: option.priceAdjustment,
+                  });
+                }
+              addItem(selected, modifiers, String(values.get('instructions') ?? ''));
+              setSelected(null);
+            }}
+          >
+            <h2 className="text-xl font-semibold">{selected.name}</h2>
+            {selected.modifiers?.map((group) => (
+              <label key={group.name}>
+                {group.name}
+                {group.required ? ' *' : ''}
+                <select
+                  name={group.name}
+                  multiple={group.type === 'multiple'}
+                  required={group.required}
+                  className="block border rounded p-3 w-full"
+                >
+                  <option value="">Choose</option>
+                  {group.options.map((option) => (
+                    <option key={option.name} value={option.name}>
+                      {option.name} / {formatCurrency(option.priceAdjustment)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <label>
+              Special instructions
+              <input name="instructions" className="block border rounded p-3 w-full" />
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="border rounded p-3"
+              >
+                Cancel
+              </button>
+              <button className="bg-orange-600 text-white rounded p-3">Add item</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 space-y-6">
@@ -73,7 +150,9 @@ export default function OrderPage() {
                       <div>
                         <p className="font-medium">{item.name}</p>
                         {item.description && (
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{item.description}</p>
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                            {item.description}
+                          </p>
                         )}
                         {item.tags.length > 0 && (
                           <div className="flex gap-1 mt-2 flex-wrap">

@@ -66,11 +66,7 @@ export const isToday = (dateString: DateString): boolean => {
   return date.toDateString() === today.toDateString();
 };
 
-export const isBetweenDates = (
-  date: DateString,
-  start?: DateString,
-  end?: DateString
-): boolean => {
+export const isBetweenDates = (date: DateString, start?: DateString, end?: DateString): boolean => {
   const dateObj = new Date(date);
   const startObj = start ? new Date(start) : null;
   const endObj = end ? new Date(end) : null;
@@ -134,16 +130,16 @@ export const chunk = <T>(array: T[], size: number): T[][] => {
   return chunks;
 };
 
-export const groupBy = <T, K extends keyof T>(
-  array: T[],
-  key: K
-): Record<string, T[]> => {
-  return array.reduce((groups, item) => {
-    const groupKey = String(item[key]);
-    groups[groupKey] = groups[groupKey] || [];
-    groups[groupKey].push(item);
-    return groups;
-  }, {} as Record<string, T[]>);
+export const groupBy = <T, K extends keyof T>(array: T[], key: K): Record<string, T[]> => {
+  return array.reduce(
+    (groups, item) => {
+      const groupKey = String(item[key]);
+      groups[groupKey] = groups[groupKey] || [];
+      groups[groupKey].push(item);
+      return groups;
+    },
+    {} as Record<string, T[]>
+  );
 };
 
 export const uniqueBy = <T, K extends keyof T>(array: T[], key: K): T[] => {
@@ -156,15 +152,11 @@ export const uniqueBy = <T, K extends keyof T>(array: T[], key: K): T[] => {
   });
 };
 
-export const sortBy = <T>(
-  array: T[],
-  key: keyof T,
-  order: 'asc' | 'desc' = 'asc'
-): T[] => {
+export const sortBy = <T>(array: T[], key: keyof T, order: 'asc' | 'desc' = 'asc'): T[] => {
   return [...array].sort((a, b) => {
     const aVal = a[key];
     const bVal = b[key];
-    
+
     if (aVal < bVal) return order === 'asc' ? -1 : 1;
     if (aVal > bVal) return order === 'asc' ? 1 : -1;
     return 0;
@@ -194,16 +186,13 @@ export const isEmptyObject = (obj: Record<string, unknown>): boolean => {
   return Object.keys(obj).length === 0;
 };
 
-export const deepMerge = <T extends Record<string, unknown>>(
-  target: T,
-  source: Partial<T>
-): T => {
+export const deepMerge = <T extends Record<string, unknown>>(target: T, source: Partial<T>): T => {
   const result: Record<string, unknown> = { ...target };
-  
+
   Object.keys(source).forEach((key) => {
     const sourceValue = source[key];
     const targetValue = target[key];
-    
+
     if (
       sourceValue &&
       typeof sourceValue === 'object' &&
@@ -212,12 +201,15 @@ export const deepMerge = <T extends Record<string, unknown>>(
       typeof targetValue === 'object' &&
       !Array.isArray(targetValue)
     ) {
-      result[key] = deepMerge(targetValue as Record<string, unknown>, sourceValue as Record<string, unknown>) as T[Extract<keyof T, string>];
+      result[key] = deepMerge(
+        targetValue as Record<string, unknown>,
+        sourceValue as Record<string, unknown>
+      ) as T[Extract<keyof T, string>];
     } else if (sourceValue !== undefined) {
       result[key] = sourceValue as T[Extract<keyof T, string>];
     }
   });
-  
+
   return result as T;
 };
 
@@ -274,7 +266,7 @@ export const maskPhone = (phone: string): string => {
 export const maskEmail = (email: string): string => {
   const [username = '', domain = ''] = email.split('@');
   if (username.length <= 2) return email;
-  
+
   const visibleChars = Math.min(2, Math.floor(username.length / 2));
   const masked = '*'.repeat(username.length - visibleChars * 2);
   return username.slice(0, visibleChars) + masked + username.slice(-visibleChars) + '@' + domain;
@@ -288,7 +280,7 @@ export const calculateTax = (
   const baseAmount = parseDecimal(amount);
   const taxAmount = roundDecimal(baseAmount * (taxRate / 100));
   const totalAmount = roundDecimal(baseAmount + taxAmount);
-  
+
   return { taxAmount, totalAmount };
 };
 
@@ -299,11 +291,11 @@ export const calculateDiscount = (
 ): { discountAmount: number; finalAmount: number } => {
   const baseAmount = parseDecimal(amount);
   let discountAmount = roundDecimal(baseAmount * (discountRate / 100));
-  
+
   if (maxDiscount && discountAmount > parseDecimal(maxDiscount)) {
     discountAmount = parseDecimal(maxDiscount);
   }
-  
+
   const finalAmount = roundDecimal(baseAmount - discountAmount);
   return { discountAmount, finalAmount };
 };
@@ -315,7 +307,7 @@ export const calculateServiceCharge = (
   const baseAmount = parseDecimal(amount);
   const serviceCharge = roundDecimal(baseAmount * (serviceChargeRate / 100));
   const totalAmount = roundDecimal(baseAmount + serviceCharge);
-  
+
   return { serviceCharge, totalAmount };
 };
 
@@ -338,24 +330,18 @@ export const generateBillNumber = (
 };
 
 // ========== Performance Utilities ==========
-export const debounce = <T extends (...args: unknown[]) => void>(
-  func: T,
-  delay: number
-): T => {
+export const debounce = <T extends (...args: unknown[]) => void>(func: T, delay: number): T => {
   let timeoutId: NodeJS.Timeout;
-  
+
   return ((...args: Parameters<T>) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func(...args), delay);
   }) as T;
 };
 
-export const throttle = <T extends (...args: unknown[]) => void>(
-  func: T,
-  delay: number
-): T => {
+export const throttle = <T extends (...args: unknown[]) => void>(func: T, delay: number): T => {
   let lastCall = 0;
-  
+
   return ((...args: Parameters<T>) => {
     const now = Date.now();
     if (now - lastCall >= delay) {
@@ -433,10 +419,10 @@ export const calculateAverage = (values: number[]): number => {
 
 export const calculateMedian = (values: number[]): number => {
   if (values.length === 0) return 0;
-  
+
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  
+
   if (sorted.length % 2 === 0) {
     return roundDecimal((sorted[mid - 1]! + sorted[mid]!) / 2);
   } else {
@@ -446,12 +432,12 @@ export const calculateMedian = (values: number[]): number => {
 
 export const calculatePercentile = (values: number[], percentile: number): number => {
   if (values.length === 0) return 0;
-  
+
   const sorted = [...values].sort((a, b) => a - b);
   const index = (percentile / 100) * (sorted.length - 1);
   const floor = Math.floor(index);
   const ceil = Math.ceil(index);
-  
+
   if (floor === ceil) {
     return sorted[floor]!;
   } else {
@@ -464,62 +450,62 @@ export const calculatePercentile = (values: number[], percentile: number): numbe
 export const Utils = {
   // Pagination
   createPaginationMeta,
-  
+
   // Date & Time
   isValidDateRange,
   formatDateForAPI,
   parseAPIDate,
   isToday,
   isBetweenDates,
-  
+
   // Currency & Decimals
   formatCurrency,
   parseDecimal,
   roundDecimal,
-  
+
   // Search & Filter
   normalizeSearchTerm,
   createSearchRegex,
-  
+
   // Arrays
   chunk,
   groupBy,
   uniqueBy,
   sortBy,
-  
+
   // Objects
   pick,
   omit,
   isEmptyObject,
   deepMerge,
-  
+
   // Validation
   isValidID,
   isValidEmail,
   isValidPhone,
   isValidGSTIN,
-  
+
   // Strings
   slugify,
   capitalize,
   truncate,
   maskPhone,
   maskEmail,
-  
+
   // Business Logic
   calculateTax,
   calculateDiscount,
   calculateServiceCharge,
   generateOrderNumber,
   generateBillNumber,
-  
+
   // Performance
   debounce,
   throttle,
-  
+
   // Errors
   createErrorResponse,
-  
+
   // Type Guards
   isDefined,
   isString,
@@ -527,7 +513,7 @@ export const Utils = {
   isBoolean,
   isArray,
   isObject,
-  
+
   // Analytics
   calculateGrowthRate,
   calculateAverage,

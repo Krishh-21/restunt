@@ -1,3 +1,9 @@
+jest.mock('../services/jobProcessors', () => ({
+  sendWhatsApp: jest.fn().mockResolvedValue({ queued: true }),
+  verifyInventoryDeduction: jest.fn().mockResolvedValue({ verified: true }),
+  reconcilePayment: jest.fn().mockRejectedValue(new Error('Provider unavailable')),
+  backupUnavailable: jest.fn().mockRejectedValue(new Error('Backup adapter not configured')),
+}));
 import { describe, it, expect, jest, beforeAll } from '@jest/globals';
 
 // Shared dictionary to capture registered processors
@@ -79,105 +85,20 @@ describe('Bull Queue Infrastructure', () => {
     });
   });
 
-  describe('Queue Job Processors (Stubs)', () => {
-    it('processes WhatsApp jobs successfully', async () => {
-      const processor = mockProcessors['whatsapp-queue'];
-      expect(processor).toBeDefined();
-
-      const result = await processor({
-        id: 'wa-job-1',
-        attemptsMade: 0,
-        data: { recipient: '+919999999999' },
+  describe('Queue processors', () => {
+    it('delegates WhatsApp and inventory jobs to real services', async () => {
+      expect(await mockProcessors['whatsapp-queue']({ data: {} })).toEqual({ queued: true });
+      expect(await mockProcessors['inventory-deduction-queue']({ data: {} })).toEqual({
+        verified: true,
       });
-
-      expect(result).toEqual({ success: true, recipient: '+919999999999' });
     });
-
-    it('processes WhatsApp job failures and triggers retry', async () => {
-      const processor = mockProcessors['whatsapp-queue'];
-      
-      await expect(
-        processor({
-          id: 'wa-job-fail',
-          attemptsMade: 0,
-          data: { shouldFail: true },
-        })
-      ).rejects.toThrow('Simulated WhatsApp service connection failure');
-    });
-
-    it('processes inventory deduction jobs successfully', async () => {
-      const processor = mockProcessors['inventory-deduction-queue'];
-      expect(processor).toBeDefined();
-
-      const result = await processor({
-        id: 'inv-job-1',
-        attemptsMade: 0,
-        data: { orderId: 'order-123', items: [{ id: 'item-1', qty: 2 }] },
-      });
-
-      expect(result).toEqual({ success: true, orderId: 'order-123', itemsCount: 1 });
-    });
-
-    it('processes inventory deduction job failures and triggers retry', async () => {
-      const processor = mockProcessors['inventory-deduction-queue'];
-      
-      await expect(
-        processor({
-          id: 'inv-job-fail',
-          attemptsMade: 0,
-          data: { shouldFail: true },
-        })
-      ).rejects.toThrow('Simulated database lock during inventory adjustment');
-    });
-
-    it('processes payment reconciliation jobs successfully', async () => {
-      const processor = mockProcessors['payment-reconciliation-queue'];
-      expect(processor).toBeDefined();
-
-      const result = await processor({
-        id: 'pay-job-1',
-        attemptsMade: 0,
-        data: { transactionId: 'txn_abc123' },
-      });
-
-      expect(result).toEqual({ success: true, transactionId: 'txn_abc123' });
-    });
-
-    it('processes payment reconciliation job failures and triggers retry', async () => {
-      const processor = mockProcessors['payment-reconciliation-queue'];
-      
-      await expect(
-        processor({
-          id: 'pay-job-fail',
-          attemptsMade: 0,
-          data: { shouldFail: true },
-        })
-      ).rejects.toThrow('Simulated gateway timeout during reconciliation');
-    });
-
-    it('processes backup jobs successfully', async () => {
-      const processor = mockProcessors['backup-queue'];
-      expect(processor).toBeDefined();
-
-      const result = await processor({
-        id: 'bkp-job-1',
-        attemptsMade: 0,
-        data: { backupPath: 's3://my-backups/daily.sql' },
-      });
-
-      expect(result).toEqual({ success: true, backupPath: 's3://my-backups/daily.sql' });
-    });
-
-    it('processes backup job failures and triggers retry', async () => {
-      const processor = mockProcessors['backup-queue'];
-      
-      await expect(
-        processor({
-          id: 'bkp-job-fail',
-          attemptsMade: 0,
-          data: { shouldFail: true },
-        })
-      ).rejects.toThrow('Simulated disk full / S3 write failure');
+    it('preserves provider failures rather than reporting simulated success', async () => {
+      await expect(mockProcessors['payment-reconciliation-queue']({ data: {} })).rejects.toThrow(
+        'Provider unavailable'
+      );
+      await expect(mockProcessors['backup-queue']({ data: {} })).rejects.toThrow(
+        'Backup adapter not configured'
+      );
     });
   });
 

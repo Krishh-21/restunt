@@ -1,3 +1,69 @@
-import React from 'react';import {createRoot} from 'react-dom/client';import {useState} from 'react';import App from '../../web/src/App';import {useAuthStore} from '../../web/src/store/authStore';import '../../web/src/index.css';
-function Captain(){const {token,setAuth}=useAuthStore();const [error,setError]=useState('');const [busy,setBusy]=useState(false);if(token)return <App/>;return <main className="min-h-screen bg-orange-50 flex items-center justify-center p-6"><form className="bg-white p-8 rounded-xl shadow grid gap-4 max-w-sm w-full" onSubmit={async event=>{event.preventDefault();setBusy(true);setError('');const values=new FormData(event.currentTarget);try{const response=await fetch((import.meta.env.VITE_API_URL||'')+'/api/auth/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({outletId:values.get('outletId'),pin:values.get('pin')})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message||'Sign-in failed');setAuth(data.token,data.user,data.outletId);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}><h1 className="text-2xl font-bold">Dinely Captain</h1><label>Outlet code<input name="outletId" required className="block border rounded p-3 w-full"/></label><label>Staff PIN<input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4}" required className="block border rounded p-3 w-full"/></label>{error&&<p role="alert" className="text-red-700">{error}</p>}<button disabled={busy} className="bg-orange-600 text-white rounded p-3">Sign in</button></form></main>;}
-createRoot(document.getElementById('root')!).render(<React.StrictMode><Captain/></React.StrictMode>);
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { useState } from 'react';
+import App from '../../web/src/App';
+import { useAuthStore } from '../../web/src/store/authStore';
+import '../../web/src/index.css';
+function Captain() {
+  const { token, setAuth } = useAuthStore();
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (token) return <App />;
+  return (
+    <main className="min-h-screen bg-orange-50 flex items-center justify-center p-6">
+      <form
+        className="bg-white p-8 rounded-xl shadow grid gap-4 max-w-sm w-full"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError('');
+          const values = new FormData(event.currentTarget);
+          try {
+            const response = await fetch((import.meta.env.VITE_API_URL || '') + '/api/auth/pin', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ outletId: values.get('outletId'), pin: values.get('pin') }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error?.message || 'Sign-in failed');
+            setAuth(data.token, data.user, data.outletId);
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <h1 className="text-2xl font-bold">Dinely Captain</h1>
+        <label>
+          Outlet code
+          <input name="outletId" required className="block border rounded p-3 w-full" />
+        </label>
+        <label>
+          Staff PIN
+          <input
+            name="pin"
+            type="password"
+            inputMode="numeric"
+            pattern="[0-9]{4}"
+            required
+            className="block border rounded p-3 w-full"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="text-red-700">
+            {error}
+          </p>
+        )}
+        <button disabled={busy} className="bg-orange-600 text-white rounded p-3">
+          Sign in
+        </button>
+      </form>
+    </main>
+  );
+}
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <Captain />
+  </React.StrictMode>
+);

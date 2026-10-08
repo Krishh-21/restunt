@@ -341,6 +341,7 @@ CREATE TABLE "tenant"."inventory_items" (
 
 -- CreateTable
 CREATE TABLE "tenant"."recipes" (
+    "outlet_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
     "tenant_id" TEXT NOT NULL,
     "menu_item_id" TEXT NOT NULL,

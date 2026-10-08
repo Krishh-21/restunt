@@ -523,55 +523,57 @@ export type DinelySocketEvent =
   | OrderStatusChangedEvent
   | OrderSettledEvent
   | OrderVoidedEvent
-  
+
   // KDS Events
   | KDSOrderReceivedEvent
   | KDSItemStatusUpdatedEvent
   | KDSOrderCompleteEvent
-  
+
   // Table Events
   | TableStatusChangedEvent
   | TableAssignedEvent
   | TableReleasedEvent
-  
+
   // Menu Events
   | MenuItemUpdatedEvent
   | MenuItemAvailabilityChangedEvent
-  
+
   // Inventory Events
   | InventoryLowStockEvent
   | InventoryOutOfStockEvent
   | InventoryUpdatedEvent
-  
+
   // Payment Events
   | PaymentReceivedEvent
   | PaymentFailedEvent
   | RefundProcessedEvent
-  
+
   // Customer Events
   | CustomerCreatedEvent
   | LoyaltyPointsUpdatedEvent
-  
+
   // Reservation Events
   | ReservationCreatedEvent
   | ReservationUpdatedEvent
   | ReservationReminderEvent
-  
+
   // Staff Events
   | UserLoginEvent
   | UserLogoutEvent
   | CashDrawerEvent
-  
+
   // System Events
   | SystemAlertEvent
   | DeviceStatusEvent
   | SyncStatusEvent
-  
+
   // Aggregator Events
   | AggregatorOrderEvent;
 
 // ========== Event Handler Types ==========
-export type EventHandler<T extends DinelySocketEvent = DinelySocketEvent> = (event: T) => void | Promise<void>;
+export type EventHandler<T extends DinelySocketEvent = DinelySocketEvent> = (
+  event: T
+) => void | Promise<void>;
 
 export interface EventSubscription {
   eventType: string;
@@ -718,24 +720,29 @@ export const filterEvents = <T extends DinelySocketEvent>(
     if (filters.outletId && event.outletId !== filters.outletId) return false;
     if (filters.userId && event.userId !== filters.userId) return false;
     if (filters.eventTypes && !filters.eventTypes.includes(event.type)) return false;
-    
+
     if (filters.dateRange) {
       const eventDate = new Date(event.timestamp);
       const startDate = new Date(filters.dateRange.startDate);
       const endDate = new Date(filters.dateRange.endDate);
       if (eventDate < startDate || eventDate > endDate) return false;
     }
-    
+
     return true;
   });
 };
 
-export const groupEventsByType = (events: DinelySocketEvent[]): Record<string, DinelySocketEvent[]> => {
-  return events.reduce((groups, event) => {
-    groups[event.type] = groups[event.type] || [];
-    groups[event.type]!.push(event);
-    return groups;
-  }, {} as Record<string, DinelySocketEvent[]>);
+export const groupEventsByType = (
+  events: DinelySocketEvent[]
+): Record<string, DinelySocketEvent[]> => {
+  return events.reduce(
+    (groups, event) => {
+      groups[event.type] = groups[event.type] || [];
+      groups[event.type]!.push(event);
+      return groups;
+    },
+    {} as Record<string, DinelySocketEvent[]>
+  );
 };
 
 export default {

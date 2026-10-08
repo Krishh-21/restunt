@@ -44,7 +44,14 @@ function App() {
               </PrivateRoute>
             }
           />
-          <Route path="/manage" element={<PrivateRoute><ManagementPage /></PrivateRoute>} />
+          <Route
+            path="/manage"
+            element={
+              <PrivateRoute>
+                <ManagementPage />
+              </PrivateRoute>
+            }
+          />
           <Route path="/" element={<Navigate to="/tables" replace />} />
         </Routes>
       </BrowserRouter>

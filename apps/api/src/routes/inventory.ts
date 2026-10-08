@@ -66,11 +66,9 @@ inventoryRouter.patch(
   requirePermission('inventory:adjust'),
   asyncHandler(async (req, res) => {
     if (!['ADMIN', 'MANAGER'].includes(req.user!.role)) {
-      res
-        .status(403)
-        .json({
-          error: { code: 'APPROVAL_REQUIRED', message: 'A manager must perform stock adjustments' },
-        });
+      res.status(403).json({
+        error: { code: 'APPROVAL_REQUIRED', message: 'A manager must perform stock adjustments' },
+      });
       return;
     }
     const input = adjustment.parse(req.body);
@@ -85,15 +83,13 @@ inventoryRouter.patch(
       return;
     }
     if (current.version !== input.version) {
-      res
-        .status(409)
-        .json({
-          error: {
-            code: 'VERSION_CONFLICT',
-            message: 'Inventory changed. Refresh and retry',
-            details: current,
-          },
-        });
+      res.status(409).json({
+        error: {
+          code: 'VERSION_CONFLICT',
+          message: 'Inventory changed. Refresh and retry',
+          details: current,
+        },
+      });
       return;
     }
     const before = Number(current.currentQuantity);

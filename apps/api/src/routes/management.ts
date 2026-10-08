@@ -5,14 +5,154 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requirePermission } from '../middleware/auth';
 import { fail } from '../lib/domain';
-export const usersRouter=Router();usersRouter.use(authenticate);
-const safeUser={id:true,tenantId:true,username:true,email:true,fullName:true,role:true,outletAssignments:true,isActive:true,lastLoginAt:true} as const;
-const userSchema=z.object({username:z.string().min(3),email:z.string().email(),fullName:z.string().min(2),password:z.string().min(10),pin:z.string().regex(/^\d{4,6}$/).optional(),role:z.enum(['ADMIN','MANAGER','CASHIER','SERVER','KITCHEN','RIDER']),outletAssignments:z.array(z.string().uuid()).min(1)});
-usersRouter.get('/',requirePermission('users:view'),asyncHandler(async(req,res)=>{res.json(await prisma.user.findMany({where:{tenantId:req.user!.tenantId},select:safeUser}));}));
-usersRouter.post('/',requirePermission('users:create'),asyncHandler(async(req,res)=>{const body=userSchema.parse(req.body);if(body.role==='ADMIN'&&req.user!.role!=='ADMIN')fail('Only admins can create admins',403);const count=await prisma.outlet.count({where:{tenantId:req.user!.tenantId,id:{in:body.outletAssignments}}});if(count!==new Set(body.outletAssignments).size)fail('Invalid outlet assignments');const {password,pin,...data}=body;res.status(201).json(await prisma.user.create({data:{...data,tenantId:req.user!.tenantId,passwordHash:await bcrypt.hash(password,12),pinHash:pin?await bcrypt.hash(pin,12):undefined},select:safeUser}));}));
-usersRouter.patch('/:id',requirePermission('users:update'),asyncHandler(async(req,res)=>{const body=userSchema.omit({username:true}).partial().extend({isActive:z.boolean().optional()}).parse(req.body);const current=await prisma.user.findFirst({where:{id:req.params.id as string,tenantId:req.user!.tenantId}});if(!current)fail('User not found',404);if((current.role==='ADMIN'||body.role==='ADMIN')&&req.user!.role!=='ADMIN')fail('Only admins can modify admins',403);if(current.id===req.user!.id&&(body.isActive===false||body.role&&body.role!==current.role))fail('Cannot deactivate or demote your own account');if(body.outletAssignments){const count=await prisma.outlet.count({where:{tenantId:req.user!.tenantId,id:{in:body.outletAssignments}}});if(count!==new Set(body.outletAssignments).size)fail('Invalid outlet assignments');}const {password,pin,...data}=body;res.json(await prisma.user.update({where:{id:current.id,tenantId:req.user!.tenantId},data:{...data,...(password?{passwordHash:await bcrypt.hash(password,12)}:{}),...(pin?{pinHash:await bcrypt.hash(pin,12)}:{})},select:safeUser}));}));
-export const outletsRouter=Router();outletsRouter.use(authenticate);
-outletsRouter.get('/',asyncHandler(async(req,res)=>{res.json(await prisma.outlet.findMany({where:{tenantId:req.user!.tenantId,id:{in:req.user!.outletIds},isActive:true}}));}));
-outletsRouter.post('/',requirePermission('settings:update'),asyncHandler(async(req,res)=>{const data=z.object({name:z.string().min(2),address:z.string().min(1),phone:z.string().min(7),email:z.string().email(),type:z.enum(['DINE_IN','QSR','CAFE','BAR','FOOD_TRUCK','CLOUD_KITCHEN']).optional()}).parse(req.body);const outlet=await prisma.$transaction(async tx=>{const created=await tx.outlet.create({data:{...data,tenantId:req.user!.tenantId}});await tx.user.update({where:{id:req.user!.id,tenantId:req.user!.tenantId},data:{outletAssignments:{push:created.id}}});return created;});res.status(201).json({...outlet,reauthenticationRequired:true});}));
-export const auditRouter=Router();auditRouter.use(authenticate,requirePermission('reports:view'));
-auditRouter.get('/',asyncHandler(async(req,res)=>{res.json(await prisma.auditLog.findMany({where:{tenantId:req.user!.tenantId,outletId:{in:req.user!.outletIds}},orderBy:{timestamp:'desc'},take:200}));}));
+export const usersRouter = Router();
+usersRouter.use(authenticate);
+const safeUser = {
+  id: true,
+  tenantId: true,
+  username: true,
+  email: true,
+  fullName: true,
+  role: true,
+  outletAssignments: true,
+  isActive: true,
+  lastLoginAt: true,
+} as const;
+const userSchema = z.object({
+  username: z.string().min(3),
+  email: z.string().email(),
+  fullName: z.string().min(2),
+  password: z.string().min(10),
+  pin: z
+    .string()
+    .regex(/^\d{4}$/)
+    .optional(),
+  role: z.enum(['ADMIN', 'MANAGER', 'CASHIER', 'SERVER', 'KITCHEN', 'RIDER']),
+  outletAssignments: z.array(z.string().uuid()).min(1),
+});
+usersRouter.get(
+  '/',
+  requirePermission('users:view'),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await prisma.user.findMany({ where: { tenantId: req.user!.tenantId }, select: safeUser })
+    );
+  })
+);
+usersRouter.post(
+  '/',
+  requirePermission('users:create'),
+  asyncHandler(async (req, res) => {
+    const body = userSchema.parse(req.body);
+    if (body.role === 'ADMIN' && req.user!.role !== 'ADMIN')
+      fail('Only admins can create admins', 403);
+    const count = await prisma.outlet.count({
+      where: { tenantId: req.user!.tenantId, id: { in: body.outletAssignments } },
+    });
+    if (count !== new Set(body.outletAssignments).size) fail('Invalid outlet assignments');
+    const { password, pin, ...data } = body;
+    res
+      .status(201)
+      .json(
+        await prisma.user.create({
+          data: {
+            ...data,
+            tenantId: req.user!.tenantId,
+            passwordHash: await bcrypt.hash(password, 12),
+            pinHash: pin ? await bcrypt.hash(pin, 12) : undefined,
+          },
+          select: safeUser,
+        })
+      );
+  })
+);
+usersRouter.patch(
+  '/:id',
+  requirePermission('users:update'),
+  asyncHandler(async (req, res) => {
+    const body = userSchema
+      .omit({ username: true })
+      .partial()
+      .extend({ isActive: z.boolean().optional() })
+      .parse(req.body);
+    const current = await prisma.user.findFirst({
+      where: { id: req.params.id as string, tenantId: req.user!.tenantId },
+    });
+    if (!current) fail('User not found', 404);
+    if ((current.role === 'ADMIN' || body.role === 'ADMIN') && req.user!.role !== 'ADMIN')
+      fail('Only admins can modify admins', 403);
+    if (
+      current.id === req.user!.id &&
+      (body.isActive === false || (body.role && body.role !== current.role))
+    )
+      fail('Cannot deactivate or demote your own account');
+    if (body.outletAssignments) {
+      const count = await prisma.outlet.count({
+        where: { tenantId: req.user!.tenantId, id: { in: body.outletAssignments } },
+      });
+      if (count !== new Set(body.outletAssignments).size) fail('Invalid outlet assignments');
+    }
+    const { password, pin, ...data } = body;
+    res.json(
+      await prisma.user.update({
+        where: { id: current.id, tenantId: req.user!.tenantId },
+        data: {
+          ...data,
+          ...(password ? { passwordHash: await bcrypt.hash(password, 12) } : {}),
+          ...(pin ? { pinHash: await bcrypt.hash(pin, 12) } : {}),
+        },
+        select: safeUser,
+      })
+    );
+  })
+);
+export const outletsRouter = Router();
+outletsRouter.use(authenticate);
+outletsRouter.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    res.json(
+      await prisma.outlet.findMany({
+        where: { tenantId: req.user!.tenantId, id: { in: req.user!.outletIds }, isActive: true },
+      })
+    );
+  })
+);
+outletsRouter.post(
+  '/',
+  requirePermission('settings:update'),
+  asyncHandler(async (req, res) => {
+    const data = z
+      .object({
+        name: z.string().min(2),
+        address: z.string().min(1),
+        phone: z.string().min(7),
+        email: z.string().email(),
+        type: z.enum(['DINE_IN', 'QSR', 'CAFE', 'BAR', 'FOOD_TRUCK', 'CLOUD_KITCHEN']).optional(),
+      })
+      .parse(req.body);
+    const outlet = await prisma.$transaction(async (tx) => {
+      const created = await tx.outlet.create({ data: { ...data, tenantId: req.user!.tenantId } });
+      await tx.user.update({
+        where: { id: req.user!.id, tenantId: req.user!.tenantId },
+        data: { outletAssignments: { push: created.id } },
+      });
+      return created;
+    });
+    res.status(201).json({ ...outlet, reauthenticationRequired: true });
+  })
+);
+export const auditRouter = Router();
+auditRouter.use(authenticate, requirePermission('reports:view'));
+auditRouter.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    res.json(
+      await prisma.auditLog.findMany({
+        where: { tenantId: req.user!.tenantId, outletId: { in: req.user!.outletIds } },
+        orderBy: { timestamp: 'desc' },
+        take: 200,
+      })
+    );
+  })
+);

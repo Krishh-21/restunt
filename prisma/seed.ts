@@ -1,11 +1,29 @@
+import { createHash } from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import 'dotenv/config';
 import bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
+function demoId(value: string) {
+  const hex = createHash('sha256').update(value).digest('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-4' +
+    hex.slice(13, 16) +
+    '-a' +
+    hex.slice(17, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 async function main() {
+  if (process.env.NODE_ENV === 'production') throw new Error('Demo seed is disabled in production');
   console.log('🌱 Starting database seeding...');
 
   // Create demo tenant
@@ -13,7 +31,7 @@ async function main() {
     where: { subdomain: 'demo' },
     update: {},
     create: {
-      id: 'demo-tenant-id',
+      id: demoId('demo-tenant-id'),
       name: 'Demo Restaurant',
       subdomain: 'demo',
       logo: null,
@@ -24,24 +42,21 @@ async function main() {
       timezone: 'Asia/Kolkata',
       country: 'IN',
       settings: {
-        loyaltyPointsRate: 0.01, // 1 point per rupee
+        loyaltyPointsRate: 0.01, // 1 point per 100 rupees
         serviceChargePercent: 10,
-        taxRates: {
-          CGST: 9,
-          SGST: 9
-        }
-      }
-    }
+        taxRates: [{ category: 'food', cgst: 2.5, sgst: 2.5 }],
+      },
+    },
   });
 
   console.log('✅ Created demo tenant:', tenant.name);
 
   // Create demo outlet
   const outlet = await prisma.outlet.upsert({
-    where: { id: 'demo-outlet-id' },
+    where: { id: demoId('demo-outlet-id') },
     update: {},
     create: {
-      id: 'demo-outlet-id',
+      id: demoId('demo-outlet-id'),
       tenantId: tenant.id,
       name: 'Main Branch',
       address: '123 Main Street, Mumbai, Maharashtra 400001',
@@ -52,27 +67,24 @@ async function main() {
       closeTime: '23:00',
       settings: {
         serviceChargePercent: 10,
-        taxRates: {
-          CGST: 9,
-          SGST: 9
-        },
-        tablePrefix: 'T'
-      }
-    }
+        taxRates: [{ category: 'food', cgst: 2.5, sgst: 2.5 }],
+        tablePrefix: 'T',
+      },
+    },
   });
 
-  console.log('✅ Created demo outlet:', outlet.name);
+  console.log('✅ Created demo outlet:', outlet.name, outlet.id);
 
   // Create admin user
   const adminPasswordHash = await bcrypt.hash('admin123', 10);
   const adminPinHash = await bcrypt.hash('1234', 10);
 
   const adminUser = await prisma.user.upsert({
-    where: { 
+    where: {
       tenantId_username: {
         tenantId: tenant.id,
-        username: 'admin'
-      }
+        username: 'admin',
+      },
     },
     update: {},
     create: {
@@ -84,8 +96,8 @@ async function main() {
       pinHash: adminPinHash,
       fullName: 'Restaurant Admin',
       role: 'ADMIN',
-      outletAssignments: [outlet.id]
-    }
+      outletAssignments: [outlet.id],
+    },
   });
 
   console.log('✅ Created admin user:', adminUser.username);
@@ -94,23 +106,23 @@ async function main() {
   const tables = [];
   for (let i = 1; i <= 10; i++) {
     const table = await prisma.table.upsert({
-      where: { id: `demo-table-${i}` },
+      where: { id: demoId(`demo-table-${i}`) },
       update: {},
       create: {
-        id: `demo-table-${i}`,
+        id: demoId(`demo-table-${i}`),
         tenantId: tenant.id,
         outletId: outlet.id,
         number: `T${i.toString().padStart(2, '0')}`,
         name: `Table ${i}`,
         capacity: i <= 6 ? 4 : i <= 8 ? 6 : 8,
         section: i <= 5 ? 'Indoor' : 'Outdoor',
-        qrCodeUrl: `https://qr.dinely.com/${tenant.subdomain}/table/${i}`,
+        qrCodeUrl: `http://localhost:3003/?outletId=${outlet.id}&tableId=${demoId(`demo-table-${i}`)}`,
         floorPlanPosition: {
           x: (i % 3) * 100 + 50,
           y: Math.floor((i - 1) / 3) * 100 + 50,
-          shape: 'rectangle'
-        }
-      }
+          shape: 'rectangle',
+        },
+      },
     });
     tables.push(table);
   }
@@ -122,22 +134,22 @@ async function main() {
     { name: 'Starters', displayOrder: 1 },
     { name: 'Main Course', displayOrder: 2 },
     { name: 'Beverages', displayOrder: 3 },
-    { name: 'Desserts', displayOrder: 4 }
+    { name: 'Desserts', displayOrder: 4 },
   ];
 
   const createdCategories = [];
   for (const category of categories) {
     const menuCategory = await prisma.menuCategory.upsert({
-      where: { id: `demo-category-${category.name.toLowerCase().replace(' ', '-')}` },
+      where: { id: demoId(`demo-category-${category.name.toLowerCase().replace(' ', '-')}`) },
       update: {},
       create: {
-        id: `demo-category-${category.name.toLowerCase().replace(' ', '-')}`,
+        id: demoId(`demo-category-${category.name.toLowerCase().replace(' ', '-')}`),
         tenantId: tenant.id,
         outletId: outlet.id,
         name: category.name,
         displayOrder: category.displayOrder,
-        taxCategory: 'standard'
-      }
+        taxCategory: 'food',
+      },
     });
     createdCategories.push(menuCategory);
   }
@@ -153,7 +165,7 @@ async function main() {
       price: 299,
       costPrice: 120,
       tags: ['vegetarian', 'spicy'],
-      preparationTimeMinutes: 15
+      preparationTimeMinutes: 15,
     },
     {
       categoryId: createdCategories[0].id, // Starters
@@ -162,7 +174,7 @@ async function main() {
       price: 399,
       costPrice: 180,
       tags: ['spicy'],
-      preparationTimeMinutes: 20
+      preparationTimeMinutes: 20,
     },
     {
       categoryId: createdCategories[1].id, // Main Course
@@ -171,7 +183,7 @@ async function main() {
       price: 499,
       costPrice: 220,
       tags: ['popular'],
-      preparationTimeMinutes: 25
+      preparationTimeMinutes: 25,
     },
     {
       categoryId: createdCategories[1].id, // Main Course
@@ -180,7 +192,7 @@ async function main() {
       price: 329,
       costPrice: 100,
       tags: ['vegetarian', 'popular'],
-      preparationTimeMinutes: 20
+      preparationTimeMinutes: 20,
     },
     {
       categoryId: createdCategories[2].id, // Beverages
@@ -189,7 +201,7 @@ async function main() {
       price: 79,
       costPrice: 15,
       tags: ['hot', 'vegetarian'],
-      preparationTimeMinutes: 5
+      preparationTimeMinutes: 5,
     },
     {
       categoryId: createdCategories[3].id, // Desserts
@@ -198,17 +210,17 @@ async function main() {
       price: 149,
       costPrice: 40,
       tags: ['vegetarian', 'sweet'],
-      preparationTimeMinutes: 10
-    }
+      preparationTimeMinutes: 10,
+    },
   ];
 
   const createdMenuItems = [];
   for (const item of menuItems) {
     const menuItem = await prisma.menuItem.upsert({
-      where: { id: `demo-item-${item.name.toLowerCase().replace(/\s+/g, '-')}` },
+      where: { id: demoId(`demo-item-${item.name.toLowerCase().replace(/\s+/g, '-')}`) },
       update: {},
       create: {
-        id: `demo-item-${item.name.toLowerCase().replace(/\s+/g, '-')}`,
+        id: demoId(`demo-item-${item.name.toLowerCase().replace(/\s+/g, '-')}`),
         tenantId: tenant.id,
         outletId: outlet.id,
         categoryId: item.categoryId,
@@ -226,11 +238,11 @@ async function main() {
             options: [
               { name: 'Mild', priceAdjustment: 0 },
               { name: 'Medium', priceAdjustment: 0 },
-              { name: 'Hot', priceAdjustment: 0 }
-            ]
-          }
-        }
-      }
+              { name: 'Hot', priceAdjustment: 0 },
+            ],
+          },
+        },
+      },
     });
     createdMenuItems.push(menuItem);
   }
@@ -239,21 +251,75 @@ async function main() {
 
   // Create sample inventory items
   const inventoryItems = [
-    { name: 'Chicken (Fresh)', category: 'meats', unitOfMeasure: 'kg', currentQuantity: 50, minimumThreshold: 10, reorderQuantity: 100, cost: 280 },
-    { name: 'Paneer', category: 'dairy', unitOfMeasure: 'kg', currentQuantity: 20, minimumThreshold: 5, reorderQuantity: 50, cost: 350 },
-    { name: 'Tomatoes', category: 'vegetables', unitOfMeasure: 'kg', currentQuantity: 30, minimumThreshold: 8, reorderQuantity: 80, cost: 40 },
-    { name: 'Onions', category: 'vegetables', unitOfMeasure: 'kg', currentQuantity: 40, minimumThreshold: 10, reorderQuantity: 100, cost: 25 },
-    { name: 'Rice (Basmati)', category: 'dry-goods', unitOfMeasure: 'kg', currentQuantity: 100, minimumThreshold: 20, reorderQuantity: 200, cost: 120 },
-    { name: 'Tea Leaves', category: 'beverages', unitOfMeasure: 'kg', currentQuantity: 5, minimumThreshold: 1, reorderQuantity: 10, cost: 800 }
+    {
+      name: 'Chicken (Fresh)',
+      category: 'meats',
+      unitOfMeasure: 'kg',
+      currentQuantity: 50,
+      minimumThreshold: 10,
+      reorderQuantity: 100,
+      cost: 280,
+    },
+    {
+      name: 'Paneer',
+      category: 'dairy',
+      unitOfMeasure: 'kg',
+      currentQuantity: 20,
+      minimumThreshold: 5,
+      reorderQuantity: 50,
+      cost: 350,
+    },
+    {
+      name: 'Tomatoes',
+      category: 'vegetables',
+      unitOfMeasure: 'kg',
+      currentQuantity: 30,
+      minimumThreshold: 8,
+      reorderQuantity: 80,
+      cost: 40,
+    },
+    {
+      name: 'Onions',
+      category: 'vegetables',
+      unitOfMeasure: 'kg',
+      currentQuantity: 40,
+      minimumThreshold: 10,
+      reorderQuantity: 100,
+      cost: 25,
+    },
+    {
+      name: 'Rice (Basmati)',
+      category: 'dry-goods',
+      unitOfMeasure: 'kg',
+      currentQuantity: 100,
+      minimumThreshold: 20,
+      reorderQuantity: 200,
+      cost: 120,
+    },
+    {
+      name: 'Tea Leaves',
+      category: 'beverages',
+      unitOfMeasure: 'kg',
+      currentQuantity: 5,
+      minimumThreshold: 1,
+      reorderQuantity: 10,
+      cost: 800,
+    },
   ];
 
   const createdInventoryItems = [];
   for (const item of inventoryItems) {
     const inventoryItem = await prisma.inventoryItem.upsert({
-      where: { id: `demo-inventory-${item.name.toLowerCase().replace(/\s+/g, '-').replace(/[()]/g, '')}` },
+      where: {
+        id: demoId(
+          `demo-inventory-${item.name.toLowerCase().replace(/\s+/g, '-').replace(/[()]/g, '')}`
+        ),
+      },
       update: {},
       create: {
-        id: `demo-inventory-${item.name.toLowerCase().replace(/\s+/g, '-').replace(/[()]/g, '')}`,
+        id: demoId(
+          `demo-inventory-${item.name.toLowerCase().replace(/\s+/g, '-').replace(/[()]/g, '')}`
+        ),
         tenantId: tenant.id,
         outletId: outlet.id,
         name: item.name,
@@ -262,8 +328,8 @@ async function main() {
         currentQuantity: item.currentQuantity,
         minimumThreshold: item.minimumThreshold,
         reorderQuantity: item.reorderQuantity,
-        weightedAverageCost: item.cost
-      }
+        weightedAverageCost: item.cost,
+      },
     });
     createdInventoryItems.push(inventoryItem);
   }
@@ -272,17 +338,17 @@ async function main() {
 
   // Create sample customer
   const customer = await prisma.customer.upsert({
-    where: { 
+    where: {
       tenantId_phone: {
         tenantId: tenant.id,
-        phone: '+91 98765 00001'
-      }
+        phone: '+919876500001',
+      },
     },
     update: {},
     create: {
       tenantId: tenant.id,
       name: 'John Doe',
-      phone: '+91 98765 00001',
+      phone: '+919876500001',
       email: 'john.doe@example.com',
       loyaltyTier: 'SILVER',
       loyaltyPoints: 150,
@@ -290,8 +356,8 @@ async function main() {
       orderCount: 12,
       tags: ['regular-customer', 'prefers-mild-spice'],
       whatsappOptIn: true,
-      emailOptIn: true
-    }
+      emailOptIn: true,
+    },
   });
 
   console.log('✅ Created demo customer:', customer.name);

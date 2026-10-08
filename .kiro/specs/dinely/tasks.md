@@ -145,7 +145,7 @@ The implementation follows a layered approach:
     - Emit Socket.IO events for status changes
     - _Requirements: Order lifecycle management_
 
-  - [x] 4.7 Implement payment processing and settlement
+  - [ ] 4.7 Implement payment processing and settlement
     - POST /api/pos/orders/:id/settle - Process payment
     - Support payment methods: cash, card, UPI, wallet
     - Transition order to settled status and clear table
@@ -238,7 +238,7 @@ The implementation follows a layered approach:
     - Implement optimistic locking with version field
     - _Requirements: 8.1, 8.5_
 
-  - [ ] 8.2 Implement stock transaction audit trail
+  - [x] 8.2 Implement stock transaction audit trail
     - POST /api/inventory/transactions - Record stock transaction
     - Record transaction types: purchase, adjustment, deduction, transfer, waste
     - Store quantity_before, quantity_after, cost_per_unit, reason, reference
@@ -308,7 +308,7 @@ The implementation follows a layered approach:
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 11. Implement Customer Relationship Management (CRM)
-  - [ ] 11.1 Create customer profile management API
+  - [x] 11.1 Create customer profile management API
     - POST /api/crm/customers - Create customer profile
     - GET /api/crm/customers - List customers with filtering
     - GET /api/crm/customers/:id - Get customer details with order history
@@ -375,7 +375,7 @@ The implementation follows a layered approach:
     - _Requirements: 17.4, 17.5, 17.6_
 
 - [ ] 13. Implement discount and promotion management
-  - [ ] 13.1 Create discount code management API
+  - [x] 13.1 Create discount code management API
     - POST /api/pos/discounts - Create discount code
     - Support types: percentage, fixed amount
     - Configure rules: min_order_value, max_discount, applicable_items, date range
@@ -391,14 +391,14 @@ The implementation follows a layered approach:
     - Create audit log for discount application over 20%
     - _Requirements: 29.3, 29.4, 29.5, 29.7_
 
-  - [ ]* 13.3 Write unit tests for discount validation logic
+  - [x]* 13.3 Write unit tests for discount validation logic
     - Test minimum order value enforcement
     - Test date range validation
     - Test usage limit enforcement
     - Test applicable items filtering
 
 - [ ] 14. Implement cash drawer monitoring
-  - [ ] 14.1 Create cash drawer session management API
+  - [x] 14.1 Create cash drawer session management API
     - POST /api/pos/cash-drawer/open - Open drawer with opening amount
     - POST /api/pos/cash-drawer/close - Close drawer with cash count
     - Track expected_closing_amount based on cash transactions
@@ -407,20 +407,20 @@ The implementation follows a layered approach:
     - Prevent cash payments when drawer not open
     - _Requirements: 22.1, 22.2, 22.3, 22.4, 22.6_
 
-  - [ ] 14.2 Implement cash reconciliation reporting
+  - [x] 14.2 Implement cash reconciliation reporting
     - GET /api/accounting/reconcile/cash - Cash reconciliation report
     - Show variances by user and shift
     - Create variance records for audit trail
     - _Requirements: 15.6, 22.5_
 
 - [ ] 15. Implement accounting system
-  - [ ] 15.1 Create expense tracking API
+  - [x] 15.1 Create expense tracking API
     - POST /api/accounting/expenses - Record expense
     - Categorize: food_cost, labor, rent, utilities, marketing, other
     - Store amount, payment_method, vendor_name, description, receipt_url, expense_date
     - _Requirements: 15.1, 15.2_
 
-  - [ ] 15.2 Implement automatic revenue recording
+  - [x] 15.2 Implement automatic revenue recording
     - Create journal entries when orders are settled
     - Categorize revenue by stream: dine-in, delivery, online, aggregator
     - Record GST collected amounts
@@ -455,7 +455,7 @@ The implementation follows a layered approach:
     - Query from read replicas to avoid transactional workload impact
     - _Requirements: 13.1, 13.6_
 
-  - [ ] 16.2 Implement business reports
+  - [x] 16.2 Implement business reports
     - GET /api/analytics/reports/sales - Sales report with date range filtering
     - GET /api/analytics/reports/menu-performance - Menu item performance
     - GET /api/analytics/reports/exceptions - Exception report (voids, discounts, refunds)
@@ -480,7 +480,7 @@ The implementation follows a layered approach:
     - PATCH /api/outlets/:id/settings - Update outlet-specific settings
     - _Requirements: 16.1_
 
-  - [ ] 17.2 Implement consolidated reporting across outlets
+  - [x] 17.2 Implement consolidated reporting across outlets
     - GET /api/analytics/dashboard?outlets=all - Consolidated dashboard
     - Support filtering by individual outlet or groups
     - Aggregate metrics across outlets
@@ -497,7 +497,7 @@ The implementation follows a layered approach:
     - Allow outlet to override item prices and availability
     - _Requirements: 16.5_
 
-  - [ ] 17.5 Implement unified customer profiles across outlets
+  - [x] 17.5 Implement unified customer profiles across outlets
     - Merge customer data across outlets within same tenant
     - Track customer visits at different outlets
     - Calculate lifetime value across all outlets
@@ -627,13 +627,13 @@ The implementation follows a layered approach:
     - POST /api/approvals/:id/approve - Manager approval endpoint
     - _Requirements: 21.3, 21.4_
 
-  - [ ] 23.3 Implement exception reporting
+  - [x] 23.3 Implement exception reporting
     - GET /api/analytics/reports/exceptions - Generate exception report
     - Highlight suspicious patterns: excessive voids, discounts, refunds
     - Alert when anomalies detected
     - _Requirements: 21.6_
 
-  - [ ] 23.4 Implement cash drawer opening audit
+  - [x] 23.4 Implement cash drawer opening audit
     - Log all cash drawer openings with user and reason
     - Track non-transaction drawer opens
     - _Requirements: 21.5_
@@ -690,7 +690,7 @@ The implementation follows a layered approach:
     - Cache menu data, table status, pending orders
     - _Requirements: 19.1_
 
-  - [ ] 27.2 Implement offline mode detection and visual indicators
+  - [x] 27.2 Implement offline mode detection and visual indicators
     - Detect network connectivity loss
     - Enter offline mode automatically
     - Display visual banner: "You are offline - orders will sync when reconnected"
@@ -713,7 +713,7 @@ The implementation follows a layered approach:
 
 
 - [ ] 28. Implement sync engine for multi-device synchronization
-  - [ ] 28.1 Create sync queue in IndexedDB
+  - [x] 28.1 Create sync queue in IndexedDB
     - Define SyncQueueEntry schema with operation_id, type, entity, data, timestamp, vector_clock
     - Track create/update/delete operations with timestamps
     - _Requirements: Sync infrastructure_
@@ -810,7 +810,7 @@ The implementation follows a layered approach:
     - Track assigned tables
     - _Requirements: 3.3, 3.5_
 
-  - [ ] 30.2 Implement Captain App authentication with PIN
+  - [x] 30.2 Implement Captain App authentication with PIN
     - POST /api/captain/auth/pin - Authenticate with PIN code
     - Generate JWT token for tablet session
     - _Requirements: 3.1_
@@ -853,7 +853,7 @@ The implementation follows a layered approach:
     - Sync on reconnection
     - _Requirements: 19.1, 19.2, 19.3, 19.4_
 
-  - [ ] 32.4 Integrate POS with Socket.IO for real-time updates
+  - [x] 32.4 Integrate POS with Socket.IO for real-time updates
     - Connect to Socket.IO server with JWT authentication
     - Listen for order and table status updates
     - Update UI in real-time when events received
@@ -978,7 +978,7 @@ The implementation follows a layered approach:
     - Test order confirmation
 
 - [ ] 37. Build Analytics Dashboard React application
-  - [ ] 37.1 Create analytics dashboard UI
+  - [x] 37.1 Create analytics dashboard UI
     - Build real-time metrics display (revenue, orders, AOV)
     - Build date range picker for reports
     - Build report cards for sales, menu performance, exceptions
@@ -986,7 +986,7 @@ The implementation follows a layered approach:
     - Support outlet filtering and comparison
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 16.2, 16.3_
 
-  - [ ] 37.2 Integrate dashboard with analytics API
+  - [x] 37.2 Integrate dashboard with analytics API
     - Fetch real-time metrics every 60 seconds
     - Fetch reports with date range filters
     - Trigger export jobs
@@ -1038,7 +1038,7 @@ The implementation follows a layered approach:
     - Set up alert thresholds (error rate > 1%, database exhaustion, payment failures)
     - _Requirements: Error monitoring_
 
-  - [ ] 39.2 Implement error response formatting
+  - [x] 39.2 Implement error response formatting
     - Return consistent error format: { code, message, field, details }
     - Categorize errors: validation (4xx), infrastructure (5xx), business logic, network
     - _Requirements: Error handling strategy_
@@ -1084,7 +1084,7 @@ The implementation follows a layered approach:
     - Test alert delivery to on-call engineers
     - _Requirements: Operational monitoring_
 
-  - [ ] 40.4 Implement database migration system
+  - [x] 40.4 Implement database migration system
     - Set up Prisma migrations for schema changes
     - Create migration scripts for tenant schema provisioning
     - Test migration rollback procedures

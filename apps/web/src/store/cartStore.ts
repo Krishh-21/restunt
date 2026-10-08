@@ -15,7 +15,11 @@ interface CartState {
   items: CartItem[];
   orderId: string | null;
   setTable: (id: string, number: string) => void;
-  addItem: (item: MenuItemResponse, modifiers?: CartItem["modifiers"], instructions?: string) => void;
+  addItem: (
+    item: MenuItemResponse,
+    modifiers?: CartItem['modifiers'],
+    instructions?: string
+  ) => void;
   removeItem: (menuItemId: string) => void;
   updateQuantity: (menuItemId: string, quantity: number) => void;
   setOrderId: (id: string) => void;
@@ -32,20 +36,39 @@ export const useCartStore = create<CartState>((set, get) => ({
   setTable: (id, number) => set({ tableId: id, tableNumber: number }),
 
   addItem: (menuItem, modifiers = [], instructions = '') => {
-    const existing = get().items.find((i) => i.menuItem.id === menuItem.id && JSON.stringify(i.modifiers) === JSON.stringify(modifiers) && (i.specialInstructions ?? '') === instructions);
+    const existing = get().items.find(
+      (i) =>
+        i.menuItem.id === menuItem.id &&
+        JSON.stringify(i.modifiers) === JSON.stringify(modifiers) &&
+        (i.specialInstructions ?? '') === instructions
+    );
     if (existing) {
       set({
         items: get().items.map((i) =>
-          i.menuItem.id === menuItem.id && JSON.stringify(i.modifiers) === JSON.stringify(modifiers) && (i.specialInstructions ?? '') === instructions ? { ...i, quantity: i.quantity + 1 } : i
+          i.menuItem.id === menuItem.id &&
+          JSON.stringify(i.modifiers) === JSON.stringify(modifiers) &&
+          (i.specialInstructions ?? '') === instructions
+            ? { ...i, quantity: i.quantity + 1 }
+            : i
         ),
       });
     } else {
-      set({ items: [...get().items, { cartId: crypto.randomUUID(), menuItem, quantity: 1, modifiers, specialInstructions: instructions }] });
+      set({
+        items: [
+          ...get().items,
+          {
+            cartId: crypto.randomUUID(),
+            menuItem,
+            quantity: 1,
+            modifiers,
+            specialInstructions: instructions,
+          },
+        ],
+      });
     }
   },
 
-  removeItem: (menuItemId) =>
-    set({ items: get().items.filter((i) => i.cartId !== menuItemId) }),
+  removeItem: (menuItemId) => set({ items: get().items.filter((i) => i.cartId !== menuItemId) }),
 
   updateQuantity: (menuItemId, quantity) => {
     if (quantity <= 0) {
@@ -53,9 +76,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       return;
     }
     set({
-      items: get().items.map((i) =>
-        i.cartId === menuItemId ? { ...i, quantity } : i
-      ),
+      items: get().items.map((i) => (i.cartId === menuItemId ? { ...i, quantity } : i)),
     });
   },
 
@@ -64,5 +85,11 @@ export const useCartStore = create<CartState>((set, get) => ({
   clear: () => set({ tableId: null, tableNumber: null, items: [], orderId: null }),
 
   subtotal: () =>
-    get().items.reduce((sum, i) => sum + (Number(i.menuItem.price) + i.modifiers.reduce((sum, m) => sum + m.priceAdjustment, 0)) * i.quantity, 0),
+    get().items.reduce(
+      (sum, i) =>
+        sum +
+        (Number(i.menuItem.price) + i.modifiers.reduce((sum, m) => sum + m.priceAdjustment, 0)) *
+          i.quantity,
+      0
+    ),
 }));

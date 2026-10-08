@@ -35,7 +35,15 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-2">Restaurant Point of Sale</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="block">Restaurant subdomain<input value={restaurant} onChange={e => setRestaurant(e.target.value)} className="w-full border rounded p-3" autoComplete="organization" /></label>
+          <label className="block">
+            Restaurant subdomain
+            <input
+              value={restaurant}
+              onChange={(e) => setRestaurant(e.target.value)}
+              className="w-full border rounded p-3"
+              autoComplete="organization"
+            />
+          </label>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
             <input

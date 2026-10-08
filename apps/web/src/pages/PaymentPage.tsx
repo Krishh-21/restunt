@@ -10,6 +10,7 @@ const PAYMENT_METHODS = [
   { id: 'cash', label: 'Cash', icon: '💵' },
   { id: 'card', label: 'Card', icon: '💳' },
   { id: 'upi', label: 'UPI', icon: '📱' },
+  { id: 'online', label: 'Verified online', icon: '✓' },
   { id: 'wallet', label: 'Wallet', icon: '👛' },
 ] as const;
 
@@ -32,12 +33,16 @@ export default function PaymentPage() {
     if (!orderId) navigate('/tables');
   }, [token, orderId, navigate]);
 
+  useEffect(() => {
+    if (order?.paymentStatus === 'PAID') setMethod('online');
+  }, [order?.paymentStatus]);
+
   async function handleSettle() {
     if (!orderId) return;
     setSettling(true);
     try {
       const result = await api.settleOrder(token!, outletId!, orderId, method);
-      setInvoice(result);
+      setInvoice(await api.getInvoice(token!, outletId!, orderId).catch(() => result));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Payment failed');
     } finally {
@@ -54,10 +59,41 @@ export default function PaymentPage() {
     return (
       <Layout title="Invoice">
         <div className="max-w-md mx-auto bg-white rounded-xl border p-6 text-center">
+          <h1 className="text-xl font-bold">{invoice.restaurantName}</h1>
+          {invoice.gstin && <p>GSTIN: {invoice.gstin}</p>}
           <div className="text-green-600 text-5xl mb-4">✓</div>
-          <h2 className="text-2xl font-bold mb-2">Payment Successful</h2><button onClick={()=>window.print()} className="border rounded p-2 my-3 print:hidden">Print invoice</button>
+          <h2 className="text-2xl font-bold mb-2">Payment Successful</h2>
+          <button onClick={() => window.print()} className="border rounded p-2 my-3 print:hidden">
+            Print invoice
+          </button>
           <p className="text-gray-500 mb-6">Table {tableNumber}</p>
           <div className="text-left space-y-2 border-t border-b py-4 mb-6">
+            {invoice.items.map((item) => (
+              <div key={item.id} className="flex justify-between">
+                <span>
+                  {item.menuItemName} × {item.quantity}
+                </span>
+                <span>{formatCurrency(Number(item.unitPrice) * item.quantity)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>{formatCurrency(invoice.subtotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Service charge</span>
+              <span>{formatCurrency(invoice.serviceCharge)}</span>
+            </div>
+            {invoice.taxBreakdown?.map((line) => (
+              <div key={line.label} className="flex justify-between">
+                <span>{line.label}</span>
+                <span>{formatCurrency(line.amount)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between">
+              <span>Discount</span>
+              <span>{formatCurrency(invoice.discountAmount)}</span>
+            </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Invoice</span>
               <span className="font-mono">{invoice.invoiceNumber}</span>

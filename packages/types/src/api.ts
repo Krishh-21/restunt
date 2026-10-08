@@ -1146,7 +1146,7 @@ export interface InventoryAlertEvent extends SocketEvent<StockAlert> {
   type: 'inventory:alert';
 }
 
-export type DinelySocketEvent = 
+export type DinelySocketEvent =
   | OrderUpdatedEvent
   | TableStatusChangedEvent
   | MenuItemUpdatedEvent
