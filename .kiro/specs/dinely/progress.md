@@ -1,6 +1,6 @@
 # Dinely progress audit — 2026-10-08
 
-Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 75 partial, 46 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
+Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 76 partial, 45 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
 
 ## Work delivered
 
@@ -115,7 +115,7 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 24.1 Create user management API | Partial | Staff creation/edit/deactivation, safe field projection, hashing, assignments and admin restrictions; complete staff UI remains. |
 | 24.2 Implement role-based access control enforcement | Partial | API permissions/outlet checks and current account refresh; exhaustive RBAC route coverage remains. |
 | 24.3 Write integration tests for RBAC | Pending | Optional test not implemented. |
-| 25.1 Create data export API | Pending | No implementation found for this task. |
+| 25.1 Create data export API | Partial | Admin-only streaming tenant JSON export with bounded batches/date filters and UI download; formal data-portability acceptance remains. |
 | 25.2 Implement automated backup system | Partial | Scheduled AES-256-GCM pg_dump backups, private S3 adapter and recovery tooling; retention pruning and provider acceptance remain. |
 | 25.3 Write integration tests for backup system | Partial | Crypto tamper/roundtrip tests and CI isolated PostgreSQL restore smoke; actual S3/provider acceptance remains. |
 | 27.1 Set up IndexedDB storage with Dexie.js | Partial | Dexie operation queue and authenticated scoped GET cache; complete local entity model remains. |

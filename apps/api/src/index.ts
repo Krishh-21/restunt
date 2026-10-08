@@ -1,4 +1,5 @@
 import './lib/loadEnv';
+import { exportRouter } from './routes/export';
 import { notificationsRouter } from './routes/notifications';
 import { readConfiguration } from './lib/config';
 import { resolve } from 'path';
@@ -95,6 +96,7 @@ app.use('/api/inventory', inventoryRouter);
 app.use('/api/inventory', procurementRouter);
 app.use('/api/crm', crmRouter);
 app.use('/api/notifications',notificationsRouter);
+app.use('/api/export',exportRouter);
 app.use('/api/discounts', discountsRouter);
 app.use('/api/accounting', accountingRouter);
 app.use('/api/analytics', analyticsRouter);

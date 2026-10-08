@@ -69,6 +69,16 @@ try {
   assert(response.ok);
   const invoice = await response.json();
   assert.equal(invoice.invoiceNumber, synced.value.invoiceNumber);
+  const exported = await fetch(base + '/api/export', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + auth.token, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  assert(exported.ok);
+  const exportedData = await exported.json();
+  assert.equal(exportedData.tenantId, auth.user.tenantId);
+  assert(exportedData.data.order.some((order) => order.id === synced.value.id));
+  assert(!('user' in exportedData.data));
   console.log(
     'Browser offline shell reload, durable order/payment queue, reconnect and server invoice passed'
   );

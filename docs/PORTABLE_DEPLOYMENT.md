@@ -60,6 +60,10 @@ Leave unused provider settings blank. Startup validates related settings togethe
 
 Gateway payments require connectivity and a verified signed callback. Refunds are not implemented. Email/push use retryable delivery records; ambiguous provider timeouts may cause duplicate delivery. Notification creation follows the business transaction and is not yet a transactional outbox.
 
+## Data export
+
+Restaurant administrators can download orders (including lines), customers, inventory, stock movements, bills, payments, expenses, journal and loyalty records from Management. The selected date range filters record creation dates. JSON is streamed in bounded database batches and contains no staff credentials. Exports contain personal customer data; store them privately. Concurrent changes may appear across collections; use database backups for a consistent recovery snapshot. This is a data-portability tool, not a complete GDPR compliance certification.
+
 ## Backups and recovery
 
 The image includes `pg_dump`/`pg_restore` 16. Use a matching client for a different database major version. With BACKUP_ENABLED=true a daily 02:00 container-time backup is scheduled; BACKUP_CRON changes the schedule. Local files live on the `backup-data` volume under `/app/.data/backups/dinely-backups`. S3 can store an additional private copy. Configure retention; local pruning is not automatic. Keep the encryption key separately from the server and backup files. Losing it makes recovery impossible.
