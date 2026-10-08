@@ -1,4 +1,4 @@
-import { calculateOrderTotals } from '@dinely/types';
+import { calculateOrderTotals, PERMISSIONS } from '@dinely/types';
 import { operationTime } from '@dinely/utils';
 import { offlineStore, flushOffline } from './offline';
 import { useAuthStore } from '../store/authStore';
@@ -111,6 +111,8 @@ export const api = {
     request('/api/pos/orders/' + orderId + '/kot', { method: 'POST' }, token, outletId),
 
   settleOrder: async (token:string,outletId:string,orderId:string,paymentMethod:string) => {
+    const actor=useAuthStore.getState().user;const permissions:readonly string[]=actor?(PERMISSIONS[actor.role]??[]):[];
+    if(!permissions.includes('*')&&!['payments:process','cash-drawer:manage'].some(permission=>permissions.includes(permission)))throw new Error('This staff role cannot record payments');
     if(paymentMethod==='online'){if(!navigator.onLine)throw new Error('Gateway settlement requires an online connection');return request<OrderResponse>('/api/pos/orders/'+orderId+'/settle',{method:'POST',body:JSON.stringify({paymentMethod})},token,outletId);}
     if(navigator.onLine&&!orderId.startsWith('offline:')){try{await request<OrderResponse>('/api/pos/orders/'+orderId,{},token,outletId);}catch(error){if(error instanceof ApiError)throw error;}}
     if(!['cash','card','upi','wallet'].includes(paymentMethod))throw new Error('Gateway payments require an online connection');
