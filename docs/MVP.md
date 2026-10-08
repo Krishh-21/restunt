@@ -57,3 +57,7 @@ Existing usernames are skipped without password or role changes; their prepared 
 ## Logo
 
 The Dinely logo uses a cream plate-shaped D, deep green background and amber hospitality spark. Editable vector assets: [wordmark](brand/dinely-logo.svg) and [app icon](brand/dinely-icon.svg). All five browser apps share the icon and installable-app branding.
+
+## Latest verified release
+
+Application commit `8c3941e` passed both GitHub Actions jobs: nine builds, 101 core tests, restaurant/staff creation and repeat safety, Docker branding/readiness checks, Chromium offline/reconnect flows, JSON export and encrypted backup restoration. These are isolated CI accounts, not live production accounts.
