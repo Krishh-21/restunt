@@ -36,3 +36,5 @@ it('rejects duplicates', () => {
   const selection = { name: 'Size', option: 'Large', priceAdjustment: 50 };
   expect(() => resolveModifiers(menu, [selection, selection])).toThrow('Duplicate');
 });
+
+test('legacy seeded modifier maps normalize to selectable groups',()=>{expect(resolveModifiers({spiceLevel:{options:[{name:'Mild',priceAdjustment:0}]}},[{name:'spiceLevel',option:'Mild',priceAdjustment:99}])).toEqual([{name:'spiceLevel',option:'Mild',priceAdjustment:0}]);});

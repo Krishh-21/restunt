@@ -7,13 +7,17 @@ const configuration = z.array(
     options: z.array(z.object({ name: z.string(), priceAdjustment: z.number().finite() })),
   })
 );
+export function normalizeModifierConfiguration(raw:unknown){
+ const input=raw&&typeof raw==='object'&&!Array.isArray(raw)?Object.entries(raw).map(([name,value])=>({...value as Record<string,unknown>,name})):raw??[];
+ return configuration.parse(input);
+}
 interface Selection {
   name: string;
   option: string;
   priceAdjustment: number;
 }
 export function resolveModifiers(raw: unknown, selections: unknown = []): Selection[] {
-  const groups = configuration.parse(raw ?? []);
+  const groups = normalizeModifierConfiguration(raw);
   const seen = new Set<string>();
   const selected = z
     .array(z.object({ name: z.string(), option: z.string(), priceAdjustment: z.number().finite() }))

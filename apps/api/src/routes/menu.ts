@@ -1,3 +1,4 @@
+import { normalizeModifierConfiguration } from '../services/orderModifiers';
 import { asyncHandler } from '../lib/asyncHandler';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -69,7 +70,7 @@ menuRouter.get(
       pricing:{serviceChargePercent:settings?.serviceChargePercent??10,taxRates:settings?.taxRates??[{category:'food',cgst:2.5,sgst:2.5}]},
       categories: categories.map(({ menuItems, ...category }) => ({
         ...category,
-        items: menuItems.map(item=>({...item,taxCategory:category.taxCategory??'food'})),
+        items: menuItems.map(item=>({...item,modifiers:normalizeModifierConfiguration(item.modifiers),taxCategory:category.taxCategory??'food'})),
       })),
     });
   })

@@ -82,6 +82,8 @@ try {
   console.log(
     'Browser offline shell reload, durable order/payment queue, reconnect and server invoice passed'
   );
+} catch(error) {
+  console.error("Browser state:",await page.locator("body").innerText().catch(()=>"unavailable"));throw error;
 } finally {
   await browser.close();
 }
