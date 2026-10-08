@@ -1,3 +1,4 @@
+import { calculateOrderTotals } from '@dinely/types';
 import { operationTime } from '@dinely/utils';
 import { offlineStore, flushOffline } from './offline';
 import { useAuthStore } from '../store/authStore';
@@ -99,10 +100,8 @@ export const api = {
       const store=offlineStore();const cached=(await store.cache.get('/api/menu'))?.value as {categories:MenuCategoryResponse[];pricing:{serviceChargePercent:number;taxRates:{category:string;cgst:number;sgst:number}[]}}|undefined;
       if(!cached?.pricing)throw new Error('Load the menu online once before creating offline orders');
       const lines=body.items.map((line,index)=>{const menu=cached.categories.flatMap(c=>c.items).find(i=>i.id===line.menuItemId);if(!menu)throw new Error('Item is missing from the offline menu');return {...line,id:id+':'+index,menuItemName:menu.name,unitPrice:menu.price,taxCategory:menu.taxCategory??'food'};});
-      const subtotal=roundMoney(lines.reduce((sum,line)=>sum+(Number(line.unitPrice)+(line.modifiers??[]).reduce((s,m)=>s+m.priceAdjustment,0))*line.quantity,0));
-      const serviceCharge=roundMoney(subtotal*cached.pricing.serviceChargePercent/100);
-      const taxAmount=roundMoney(lines.reduce((sum,line)=>{const rate=cached.pricing.taxRates.find(r=>r.category===line.taxCategory)??cached.pricing.taxRates[0];const value=(Number(line.unitPrice)+(line.modifiers??[]).reduce((s,m)=>s+m.priceAdjustment,0))*line.quantity;return sum+value*(1+cached.pricing.serviceChargePercent/100)*((rate?.cgst??0)+(rate?.sgst??0))/100;},0));
-      const local={id:'offline:'+id,pendingSync:true,orderNumber:'Provisional '+id.slice(0,8),status:'SUBMITTED',items:lines,subtotal,taxAmount,serviceCharge,discountAmount:0,total:roundMoney(subtotal+serviceCharge+taxAmount),invoiceNumber:null} as OrderResponse;
+      const totals=calculateOrderTotals({items:lines.map(line=>({...line,unitPrice:Number(line.unitPrice),modifiers:line.modifiers??[]})),serviceChargePercent:cached.pricing.serviceChargePercent,discountAmount:0,taxRates:cached.pricing.taxRates});
+      const local={id:'offline:'+id,pendingSync:true,orderNumber:'Provisional '+id.slice(0,8),status:'SUBMITTED',items:lines,...totals,invoiceNumber:null} as OrderResponse;
       await store.transaction('rw',store.operations,store.cache,async()=>{await store.operations.put({id,userId:user.id,createdAt,type:'order:create',payload:body});await store.cache.put({key:'/api/pos/orders/'+local.id,value:local});const tables=(await store.cache.get('/api/pos/tables'))?.value as TableResponse[]|undefined;if(tables&&body.tableId)await store.cache.put({key:'/api/pos/tables',value:tables.map(t=>t.id===body.tableId?{...t,status:'OCCUPIED',currentOrderId:local.id}:t)});});
       return local;
     }
@@ -187,4 +186,3 @@ export function formatCurrency(amount: number | string): string {
   return `₹${Number(amount).toFixed(2)}`;
 }
 
-function roundMoney(value:number){return Math.round(value*100)/100;}

@@ -561,5 +561,6 @@ export async function voidOrder(
   if (order.tableId)
     emitToOutlet(tenantId, outletId, 'table:available', { tableId: order.tableId });
   emitToOutlet(tenantId, outletId, 'order:updated', voided);
+  void notifyManagers(tenantId,outletId,'order:voided','Order voided',order.orderNumber+': '+input.reason).catch(()=>console.error('Void notification could not be recorded'));
   return voided;
 }

@@ -23,6 +23,7 @@ export default defineConfig({
     },
   },
   build: {
+    commonjsOptions: { include: [/node_modules/, /packages[\\/]types[\\/]dist/] },
     outDir: 'dist',
     sourcemap: true,
   },

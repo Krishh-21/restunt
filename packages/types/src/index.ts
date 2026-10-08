@@ -332,3 +332,5 @@ export const TypeGuards = {
     'name' in value &&
     'price' in value,
 } as const;
+
+export { calculateOrderTotals, type CalcLineItem, type OrderCalcInput, type OrderCalcResult } from './orderCalculation';

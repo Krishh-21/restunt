@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(),offlineShell('captain')],
   base: './',
   envDir: path.resolve(__dirname, '../..'),
+  build: {commonjsOptions:{include:[/node_modules/,/packages[\\/]types[\\/]dist/]}},
   server: {
     port: 3002,
     proxy: {

@@ -60,7 +60,7 @@ declare global {
   }
 }
 
-app.use(helmet({contentSecurityPolicy:{directives:{'script-src':["'self'",'https://checkout.razorpay.com'],'frame-src':["'self'",'https://api.razorpay.com','https://checkout.razorpay.com'],'img-src':["'self'",'data:','https:'],'connect-src':["'self'",'https:','wss:'], 'style-src':["'self'","'unsafe-inline'"]}}}));
+app.use(helmet({contentSecurityPolicy:{directives:{'upgrade-insecure-requests':config.NODE_ENV==='production'?[]:null,'script-src':["'self'",'https://checkout.razorpay.com'],'frame-src':["'self'",'https://api.razorpay.com','https://checkout.razorpay.com'],'img-src':["'self'",'data:','https:'],'connect-src':["'self'",'https:','wss:'], 'style-src':["'self'","'unsafe-inline'"]}}}));
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',').map(origin=>origin.trim()) ?? '*' }));
 app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/payments/razorpay/webhook', express.raw({ type: 'application/json' }));
@@ -185,7 +185,7 @@ app.use(
   }
 );
 
-void scheduleBackups().catch(error=>{console.error('Backup schedule configuration failed:',error.message);process.exitCode=1;});
+void scheduleBackups().catch(error=>{console.error('Backup schedule configuration failed:',error.message);process.exit(1);});
 
 const notificationTimer=setInterval(()=>{void dispatchNotifications().catch(()=>console.error('Notification dispatch failed; queued records retained'));},30000);
 

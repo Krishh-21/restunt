@@ -56,7 +56,7 @@ try {
   await page.getByRole('button', { name: /^T1 occupied/ }).waitFor();
   assert.equal((await records('operations')).length, 2);
   await context.setOffline(false);
-  await page.getByRole('button', { name: 'Retry synchronization', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
   for (let n = 0; n < 60 && (await records('operations')).length; n++)
     await new Promise((resolve) => setTimeout(resolve, 500));
   assert.equal((await records('operations')).length, 0, 'Offline operations did not acknowledge');
