@@ -1,6 +1,6 @@
 # Dinely progress audit — 2026-10-08
 
-Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 76 partial, 45 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
+Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 79 partial, 42 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
 
 ## Work delivered
 
@@ -92,9 +92,9 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 17.3 Implement inter-outlet stock transfer | Partial | Atomic same-unit transfer and receiving weighted cost; transfer document/approval workflow remains. |
 | 17.4 Implement central menu management with outlet overrides | Pending | No implementation found for this task. |
 | 17.5 Implement unified customer profiles across outlets | Implemented | Customer identity and loyalty shared by tenant across outlets with scoped order access. |
-| 19.1 Set up Firebase Cloud Messaging for push notifications | Pending | No implementation found for this task. |
-| 19.2 Implement notification triggers and preferences | Pending | No implementation found for this task. |
-| 19.3 Set up SMTP integration for email alerts | Pending | No implementation found for this task. |
+| 19.1 Set up Firebase Cloud Messaging for push notifications | Partial | Real FCM server adapter and token preferences; browser enrollment and configured provider validation remain. |
+| 19.2 Implement notification triggers and preferences | Partial | Low-stock, negative-feedback, void and cash-variance triggers with in-app/email preferences; transactional outbox remains. |
+| 19.3 Set up SMTP integration for email alerts | Partial | Retryable SMTP delivery and opt-in UI with failure/duplicate-send tests; sender/provider acceptance remains. |
 | 20.1 Set up Twilio WhatsApp Business API integration | Partial | Real Twilio approved-template worker with consent/E.164 validation; credentials and provider validation remain. |
 | 20.2 Implement transactional messaging | Pending | No implementation found for this task. |
 | 20.3 Implement marketing campaign management | Pending | No implementation found for this task. |
@@ -120,7 +120,7 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 25.3 Write integration tests for backup system | Partial | Crypto tamper/roundtrip tests and CI isolated PostgreSQL restore smoke; actual S3/provider acceptance remains. |
 | 27.1 Set up IndexedDB storage with Dexie.js | Partial | Dexie operation queue and authenticated scoped GET cache; complete local entity model remains. |
 | 27.2 Implement offline mode detection and visual indicators | Implemented | Network and pending-sync indicator with reconnect processing. |
-| 27.3 Implement offline operations for POS | Partial | Durable create-order queue; offline payments, edits and voids remain. |
+| 27.3 Implement offline operations for POS | Partial | Durable create/manual-payment queue with replay receipts; complete offline edits and voids remain. |
 | 27.4 Write property test for offline operations resilience | Pending | Optional test not implemented. |
 | 28.1 Create sync queue in IndexedDB | Implemented | UUID-attributed queued creates retained until acknowledgement; conflicts preserved. |
 | 28.2 Implement vector clock management | Partial | Vector comparison utility exists; protocol does not yet merge vector clocks. |
@@ -141,7 +141,7 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 30.3 Implement Captain App order creation with offline support | Partial | Shared POS/table ordering and durable create replay; dedicated captain assignment and complete sync remain. |
 | 32.1 Create POS UI components | Partial | Tables, modifiers, cart, payment/invoice and management screens; full operational UX remains. |
 | 32.2 Integrate POS UI with backend APIs | Partial | API-connected workflows; browser end-to-end acceptance remains. |
-| 32.3 Implement POS offline mode with IndexedDB | Partial | Cached menus/tables and offline order creation; full offline payment/edit scope remains. |
+| 32.3 Implement POS offline mode with IndexedDB | Partial | Cached app shell/menu/tables, queued create/manual payments and reconnect replay; complete offline edits remain. |
 | 32.4 Integrate POS with Socket.IO for real-time updates | Implemented | Socket-driven query refresh and reconnect/polling fallback. |
 | 32.5 Write UI component tests for POS | Pending | Optional test not implemented. |
 | 33.1 Create KDS UI components | Partial | apps/kitchen/src; rush indicators and browser/component tests remain. |
