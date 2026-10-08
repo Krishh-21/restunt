@@ -1,3 +1,4 @@
+import { normalizeModifierConfiguration } from '../services/orderModifiers';
 import { Router } from 'express';
 import { randomBytes, createHash } from 'crypto';
 import { z } from 'zod';
@@ -55,7 +56,7 @@ publicRouter.get(
       outlet: { id: outlet.id, name: outlet.name },
       categories: categories.map(({ menuItems, ...category }) => ({
         ...category,
-        items: menuItems,
+        items: menuItems.map(item=>({...item,modifiers:normalizeModifierConfiguration(item.modifiers)})),
       })),
       paymentProviders: [
         ...(process.env.STRIPE_SECRET_KEY ? ['stripe'] : []),

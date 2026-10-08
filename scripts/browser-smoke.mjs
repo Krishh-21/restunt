@@ -69,6 +69,7 @@ try {
   assert(response.ok);
   const invoice = await response.json();
   assert.equal(invoice.invoiceNumber, synced.value.invoiceNumber);
+  for(const app of ['qr','store']){await page.goto(base+'/'+app+'/?outletId='+auth.outletId);await page.getByText('Paneer Tikka',{exact:true}).waitFor();}
   const exported = await fetch(base + '/api/export', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + auth.token, 'Content-Type': 'application/json' },
