@@ -8,7 +8,7 @@ import ManagementPage from './pages/ManagementPage';
 import NotificationsPage from './pages/NotificationsPage';
 import PaymentPage from './pages/PaymentPage';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({defaultOptions:{queries:{networkMode:'always'}}});
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);

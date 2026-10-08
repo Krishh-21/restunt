@@ -5,6 +5,7 @@ const browser = await chromium.launch();
 const context = await browser.newContext();
 const page = await context.newPage();
 page.setDefaultTimeout(30000);
+page.on('pageerror',error=>console.error('Browser script error:',error.message));
 try {
   await page.goto(base + '/pos/login');
   await page.getByLabel('Restaurant subdomain').fill('demo');
@@ -18,6 +19,7 @@ try {
   await page.getByRole('button', { name: /Paneer Tikka/ }).click();
   await page.getByRole('button', { name: 'Add item', exact: true }).click();
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
   await context.setOffline(true);
   await page.getByRole('button', { name: 'Send to Kitchen & Pay', exact: true }).click();
   await page.waitForURL('**/payment');
@@ -84,7 +86,8 @@ try {
     'Browser offline shell reload, durable order/payment queue, reconnect and server invoice passed'
   );
 } catch(error) {
-  console.error("Browser state:",await page.locator("body").innerText().catch(()=>"unavailable"));throw error;
+  console.error("Browser state:",await page.locator("body").innerText().catch(()=>"unavailable"));
+  console.error("Browser document:",(await page.content()).slice(0,2000));throw error;
 } finally {
   await browser.close();
 }
