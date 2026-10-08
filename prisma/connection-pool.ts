@@ -4,6 +4,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config';
 
 export interface ConnectionPoolConfig {
   maxConnections?: number;
@@ -28,7 +30,7 @@ export class PrismaConnectionPool {
       idleTimeout: config.idleTimeout || 300000, // 5 minutes
       maxLifetime: config.maxLifetime || 3600000, // 1 hour
       retryAttempts: config.retryAttempts || 3,
-      retryDelay: config.retryDelay || 1000
+      retryDelay: config.retryDelay || 1000,
     };
 
     this.client = this.createClient();
@@ -45,10 +47,9 @@ export class PrismaConnectionPool {
 
   private createClient(): PrismaClient {
     return new PrismaClient({
-      log: process.env.NODE_ENV === 'development' 
-        ? ['query', 'info', 'warn', 'error'] 
-        : ['error'],
-      errorFormat: 'minimal'
+      adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+      log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+      errorFormat: 'minimal',
     });
   }
 
@@ -70,7 +71,7 @@ export class PrismaConnectionPool {
 
   private async reconnect(): Promise<void> {
     console.log('Attempting to reconnect to database...');
-    
+
     for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
       try {
         await this.client.$disconnect();
@@ -80,13 +81,13 @@ export class PrismaConnectionPool {
         return;
       } catch (error) {
         console.error(`Reconnection attempt ${attempt} failed:`, error);
-        
+
         if (attempt < this.config.retryAttempts) {
-          await new Promise(resolve => setTimeout(resolve, this.config.retryDelay * attempt));
+          await new Promise((resolve) => setTimeout(resolve, this.config.retryDelay * attempt));
         }
       }
     }
-    
+
     console.error('Failed to reconnect to database after all attempts');
   }
 
@@ -106,7 +107,7 @@ export class PrismaConnectionPool {
     if (this.healthCheck) {
       clearInterval(this.healthCheck);
     }
-    
+
     try {
       await this.client.$disconnect();
       console.log('Database connections closed successfully');
@@ -128,7 +129,7 @@ export class PrismaConnectionPool {
   public getStats(): { connectionCount: number; config: Required<ConnectionPoolConfig> } {
     return {
       connectionCount: this.connectionCount,
-      config: this.config
+      config: this.config,
     };
   }
 }
@@ -138,7 +139,7 @@ export const connectionPool = PrismaConnectionPool.getInstance({
   maxConnections: parseInt(process.env.PRISMA_CLIENT_MAX_CONNECTIONS || '10'),
   connectionTimeout: parseInt(process.env.PRISMA_CLIENT_CONNECTION_TIMEOUT || '30000'),
   retryAttempts: parseInt(process.env.PRISMA_CLIENT_RETRY_ATTEMPTS || '3'),
-  retryDelay: parseInt(process.env.PRISMA_CLIENT_RETRY_DELAY || '1000')
+  retryDelay: parseInt(process.env.PRISMA_CLIENT_RETRY_DELAY || '1000'),
 });
 
 // Export the client for convenience

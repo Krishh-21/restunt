@@ -16,7 +16,7 @@ export const getRedisOptions = (): RedisOptions => {
   };
 };
 
-export const createRedisInstance = (): Redis | Cluster => {
+export const createRedisInstance = (overrides: RedisOptions = {}): Redis | Cluster => {
   if (REDIS_CLUSTER_MODE && REDIS_CLUSTER_NODES) {
     const nodes = REDIS_CLUSTER_NODES.split(',').map((node) => {
       const [host, port] = node.trim().split(':');
@@ -27,12 +27,13 @@ export const createRedisInstance = (): Redis | Cluster => {
     });
     console.log(`[Redis] Initializing in CLUSTER mode with nodes:`, nodes);
     return new Redis.Cluster(nodes, {
-      redisOptions: getRedisOptions(),
+      enableReadyCheck: overrides.enableReadyCheck ?? true,
+      redisOptions: { ...getRedisOptions(), ...overrides },
     });
   }
 
-  console.log(`[Redis] Initializing in STANDALONE mode with URL: ${REDIS_URL}`);
-  return new Redis(REDIS_URL, getRedisOptions());
+  console.log('[Redis] Initializing in STANDALONE mode');
+  return new Redis(REDIS_URL, { ...getRedisOptions(), ...overrides });
 };
 
 // Main client instance for caching/session management

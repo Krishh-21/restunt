@@ -14,22 +14,13 @@ import type {
   MenuCategory,
   Table,
   Customer,
-  User,
-  Bill,
   Reservation,
   InventoryItem,
   Recipe,
-  Vendor,
-  PurchaseOrder,
   Payment,
-  Feedback,
-  DiscountCode,
   CashDrawerSession,
-  Device,
   Outlet,
-  TaxBreakdownLine,
   OrderItemModifier,
-  POLineItem,
 } from './database.js';
 
 import {
@@ -43,7 +34,6 @@ import {
   CustomerTier,
   ReservationStatus,
   FeedbackStatus,
-  ExpenseCategory,
   StockTransactionType,
 } from './enums.js';
 
@@ -1156,7 +1146,7 @@ export interface InventoryAlertEvent extends SocketEvent<StockAlert> {
   type: 'inventory:alert';
 }
 
-export type DinelySocketEvent = 
+export type DinelySocketEvent =
   | OrderUpdatedEvent
   | TableStatusChangedEvent
   | MenuItemUpdatedEvent

@@ -24,7 +24,7 @@ export {
   Utils,
   DinelyError,
   createErrorResponse,
-  
+
   // Type guards
   isDefined,
   isString,
@@ -32,39 +32,39 @@ export {
   isBoolean,
   isArray,
   isObject,
-  
-  // Business logic utilities  
+
+  // Business logic utilities
   calculateTax,
   calculateDiscount,
   calculateServiceCharge,
   generateOrderNumber,
   generateBillNumber,
-  
+
   // Date utilities
   formatDateForAPI,
   parseAPIDate,
   isToday,
   isBetweenDates,
-  
+
   // Array utilities
   chunk,
   groupBy,
   uniqueBy,
   sortBy,
-  
+
   // String utilities
   slugify,
   capitalize,
   truncate,
   maskPhone,
   maskEmail,
-  
+
   // Validation utilities
   isValidID,
   isValidEmail,
   isValidPhone,
   isValidGSTIN,
-  
+
   // Currency utilities
   formatCurrency,
   parseDecimal,
@@ -77,19 +77,19 @@ export type {
   ApiResponse,
   ApiError,
   ResponseMeta,
-  
+
   // Authentication
   LoginResponse,
   AuthUser,
   RefreshTokenRequest,
   ChangePasswordRequest,
   SetPinRequest,
-  
+
   // Menu management
   MenuResponse,
   MenuCategoryWithItems,
   UpdateMenuItemAvailabilityRequest,
-  
+
   // Order management
   UpdateOrderItemsRequest,
   UpdateOrderItemRequest,
@@ -101,12 +101,12 @@ export type {
   KOTResponse,
   KOTStationData,
   KOTItemData,
-  
+
   // Order queries
   OrdersResponse,
   OrderSummary,
   OrderDetailsResponse,
-  
+
   // Table management
   CreateTableRequest,
   UpdateTableRequest,
@@ -115,7 +115,7 @@ export type {
   TableWithDetails,
   MergeTablesRequest,
   SplitTableRequest,
-  
+
   // Customer management
   UpdateCustomerRequest as UpdateCustomerAPIRequest,
   CustomerDetailsResponse,
@@ -123,16 +123,16 @@ export type {
   CustomerLoyaltyTransaction,
   CustomerPreferences,
   CustomerStats,
-  
+
   // Loyalty program
   AwardLoyaltyPointsRequest,
   RedeemLoyaltyPointsRequest,
   LoyaltyTransactionResponse,
-  
+
   // Reservations
   UpdateReservationRequest as UpdateReservationAPIRequest,
   ReservationDetailsResponse,
-  
+
   // KDS
   KDSOrdersFilter,
   KDSOrderResponse,
@@ -141,7 +141,7 @@ export type {
   KitchenStationInfo,
   UpdateKDSItemStatusRequest,
   MarkOrderReadyRequest,
-  
+
   // Dashboard and reporting
   DashboardResponse,
   DashboardSummary,
@@ -151,7 +151,7 @@ export type {
   SystemAlert,
   SalesReportFilter,
   SalesReportResponse,
-  
+
   // Payment processing
   CreatePaymentIntentRequest,
   PaymentIntentResponse,
@@ -170,7 +170,7 @@ export {
   EmailSchema,
   PasswordSchema,
   PinSchema,
-  
+
   // Enum schemas
   UserRoleSchema,
   OrderTypeSchema,
@@ -179,19 +179,19 @@ export {
   PaymentMethodSchema,
   PaymentStatusSchema,
   TableStatusSchema,
-  
+
   // Common schemas
   PaginationSchema,
   DateRangeSchema,
   SearchSchema,
   TaxRateSchema,
   FloorPlanPositionSchema,
-  
+
   // Authentication schemas
   LoginRequestSchema,
   ChangePasswordRequestSchema,
   SetPinRequestSchema,
-  
+
   // Entity schemas
   CreateTenantRequestSchema,
   CreateOutletRequestSchema,
@@ -209,7 +209,7 @@ export {
   UpdateTableStatusRequestSchema,
   CreateCustomerRequestSchema,
   UpdateCustomerRequestSchema,
-  
+
   // Validation helpers
   validateOrThrow,
   validatePartial,
@@ -237,9 +237,6 @@ import type {
 import type {
   CreateOrderRequest as APICreateOrderRequest,
   SettleOrderRequest as APISettleOrderRequest,
-  LoginResponse as APILoginResponse,
-  ApiError as APIError,
-  AuthUser as APIAuthUser,
 } from './api.js';
 
 import {
@@ -266,14 +263,11 @@ export type {
   TenantSettings,
   OutletSettings,
   TaxRate,
-  
+
   // API types (renamed to avoid conflicts)
   APICreateOrderRequest as CreateOrderInput,
   APISettleOrderRequest as SettleOrderInput,
-  APILoginResponse as LoginResponse,
-  APIError as ApiError,
-  APIAuthUser as AuthUser,
-  
+
   // Enum types for backward compatibility
   UserRole,
   OrderStatus,
@@ -312,24 +306,29 @@ export const PACKAGE_INFO = {
 
 // ========== Type Guards for Runtime Validation ==========
 export const TypeGuards = {
-  isValidID: (value: unknown): value is string => 
-    typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
-    
+  isValidID: (value: unknown): value is string =>
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
+
   isValidEmail: (value: unknown): value is string =>
     typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
-    
+
   isValidPhone: (value: unknown): value is string =>
     typeof value === 'string' && /^\+?[1-9]\d{1,14}$/.test(value),
-    
+
   isOrder: (value: unknown): value is Order =>
     typeof value === 'object' && value !== null && 'id' in value && 'orderNumber' in value,
-    
+
   isOrderItem: (value: unknown): value is OrderItem =>
     typeof value === 'object' && value !== null && 'id' in value && 'menuItemId' in value,
-    
+
   isTable: (value: unknown): value is Table =>
     typeof value === 'object' && value !== null && 'id' in value && 'number' in value,
-    
+
   isMenuItem: (value: unknown): value is MenuItem =>
-    typeof value === 'object' && value !== null && 'id' in value && 'name' in value && 'price' in value,
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'name' in value &&
+    'price' in value,
 } as const;

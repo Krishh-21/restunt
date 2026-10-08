@@ -16,6 +16,7 @@ const statusColors: Record<string, string> = {
 export default function TablesPage() {
   const { token, outletId } = useAuthStore();
   const setTable = useCartStore((s) => s.setTable);
+  const setOrderId = useCartStore((s) => s.setOrderId);
   const clear = useCartStore((s) => s.clear);
   const navigate = useNavigate();
   const [selected, setSelected] = useState<string | null>(null);
@@ -32,6 +33,13 @@ export default function TablesPage() {
   }, [token, navigate]);
 
   function handleSelectTable(table: TableResponse) {
+    if (table.currentOrderId) {
+      clear();
+      setTable(table.id, table.number);
+      setOrderId(table.currentOrderId);
+      navigate('/payment');
+      return;
+    }
     if (table.status !== 'AVAILABLE') return;
     setSelected(table.id);
   }
@@ -55,7 +63,7 @@ export default function TablesPage() {
               <button
                 key={table.id}
                 onClick={() => handleSelectTable(table)}
-                disabled={table.status !== 'AVAILABLE'}
+                disabled={table.status !== 'AVAILABLE' && !table.currentOrderId}
                 className={`p-6 rounded-xl border-2 text-center transition transform hover:scale-105 ${
                   statusColors[table.status] ?? 'bg-white border-gray-200'
                 } ${selected === table.id ? 'ring-4 ring-orange-400' : ''} ${

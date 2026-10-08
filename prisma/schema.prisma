@@ -1,5 +1,5 @@
 // Prisma schema for Dinely Restaurant Operating System
-// Multi-tenant architecture with schema-per-tenant
+// Current implementation: shared tenant schema with explicit tenantId filters.
 
 generator client {
   provider        = "prisma-client-js"
@@ -269,6 +269,11 @@ enum TableStatus {
 
 // Order
 model Order {
+  customerAccessTokenHash String? @map("customer_access_token_hash")
+  deliveryAddress Json? @map("delivery_address")
+  clientOperationId    String? @map("client_operation_id")
+  clientCreatedAt      DateTime? @map("client_created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
   id                   String         @id @default(uuid())
   tenantId             String         @map("tenant_id")
   outletId             String         @map("outlet_id")
@@ -315,6 +320,7 @@ model Order {
   @@index([orderNumber])
   @@map("orders")
   @@schema("tenant")
+  @@unique([tenantId, outletId, clientOperationId])
 }
 
 enum OrderType {
@@ -404,6 +410,7 @@ model Payment {
   orderId              String        @map("order_id")
   amount               Decimal       @db.Decimal(10, 2)
   method               PaymentMethod
+  currency             String        @default("INR")
   gateway              String? // Razorpay, Stripe, etc.
   gatewayTransactionId String?       @map("gateway_transaction_id")
   status               PaymentStatus @default(PENDING)
@@ -416,6 +423,7 @@ model Payment {
   @@index([tenantId])
   @@map("payments")
   @@schema("tenant")
+  @@unique([gateway, gatewayTransactionId])
 }
 
 // Customer
@@ -518,6 +526,7 @@ model InventoryItem {
 
 // Recipe Specification
 model Recipe {
+  outletId      String             @map("outlet_id")
   id            String             @id @default(uuid())
   tenantId      String             @map("tenant_id")
   menuItemId    String             @map("menu_item_id")
@@ -926,3 +935,17 @@ model InvoiceSequence {
   @@schema("tenant")
 }
 
+
+model JournalEntry {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  outletId String @map("outlet_id")
+  orderId String @unique @map("order_id")
+  revenue Decimal @db.Decimal(10,2)
+  gst Decimal @db.Decimal(10,2)
+  stream String
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([tenantId, outletId, createdAt])
+  @@map("journal_entries")
+  @@schema("tenant")
+}

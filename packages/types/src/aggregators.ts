@@ -3,11 +3,11 @@
  * Types for third-party food delivery platform integrations
  */
 
-import type { ID, DateString, DecimalValue, OrderItem } from './database.js';
+import type { ID, DateString, DecimalValue } from './database.js';
 import type { OrderType, PaymentMethod, PaymentStatus } from './enums.js';
 
 // ========== Supported Aggregators ==========
-export type AggregatorPlatform = 
+export type AggregatorPlatform =
   | 'zomato'
   | 'swiggy'
   | 'talabat'
@@ -364,57 +364,29 @@ export enum AggregatorErrorCode {
   CONNECTION_FAILED = 'CONNECTION_FAILED',
   TIMEOUT = 'TIMEOUT',
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
-  
+
   // Authentication errors
   INVALID_CREDENTIALS = 'INVALID_CREDENTIALS',
   TOKEN_EXPIRED = 'TOKEN_EXPIRED',
   UNAUTHORIZED = 'UNAUTHORIZED',
-  
+
   // Order errors
   ORDER_NOT_FOUND = 'ORDER_NOT_FOUND',
   INVALID_ORDER_STATUS = 'INVALID_ORDER_STATUS',
   ORDER_ALREADY_PROCESSED = 'ORDER_ALREADY_PROCESSED',
-  
+
   // Menu errors
   ITEM_NOT_FOUND = 'ITEM_NOT_FOUND',
   MENU_SYNC_FAILED = 'MENU_SYNC_FAILED',
   INVALID_MENU_DATA = 'INVALID_MENU_DATA',
-  
+
   // Payment errors
   PAYMENT_FAILED = 'PAYMENT_FAILED',
   REFUND_FAILED = 'REFUND_FAILED',
   SETTLEMENT_ERROR = 'SETTLEMENT_ERROR',
-  
+
   // Webhook errors
   INVALID_SIGNATURE = 'INVALID_SIGNATURE',
   WEBHOOK_PROCESSING_FAILED = 'WEBHOOK_PROCESSING_FAILED',
   DUPLICATE_WEBHOOK = 'DUPLICATE_WEBHOOK',
 }
-
-// ========== Export Types ==========
-export type {
-  AggregatorPlatform,
-  AggregatorOrder,
-  AggregatorOrderStatus,
-  AggregatorCustomer,
-  AggregatorAddress,
-  AggregatorOrderItem,
-  AggregatorItemModifier,
-  AggregatorDeliveryInfo,
-  AggregatorPaymentInfo,
-  AggregatorTimingInfo,
-  AggregatorFeeBreakdown,
-  AggregatorOrderMetadata,
-  AggregatorWebhook,
-  AggregatorWebhookEvent,
-  UpdateAggregatorOrderStatusRequest,
-  AggregatorRejectionReason,
-  AggregatorMenuSyncRequest,
-  AggregatorMenuSyncResponse,
-  AggregatorAvailabilityUpdate,
-  AggregatorAnalytics,
-  AggregatorReconciliation,
-  AggregatorConfiguration,
-  AggregatorError,
-  AggregatorErrorCode,
-};

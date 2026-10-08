@@ -1,0 +1,238 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { prisma } from '../lib/prisma';
+import { asyncHandler } from '../lib/asyncHandler';
+import { authenticate, requireOutletAccess, requirePermission } from '../middleware/auth';
+import { fail, scope, money } from '../lib/domain';
+export const accountingRouter = Router();
+accountingRouter.use(authenticate, requireOutletAccess);
+const expenseSchema = z.object({
+  category: z.enum(['FOOD_COST', 'LABOR', 'RENT', 'UTILITIES', 'MARKETING', 'OTHER']),
+  amount: z.number().positive().multipleOf(0.01),
+  paymentMethod: z.enum(['CASH', 'CARD', 'UPI', 'WALLET', 'ONLINE']),
+  vendorName: z.string().min(1),
+  description: z.string().min(1),
+  receiptUrl: z.string().url().optional(),
+  expenseDate: z.coerce.date(),
+});
+accountingRouter.get(
+  '/expenses',
+  requirePermission('reports:view'),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await prisma.expense.findMany({
+        where: scope(req),
+        orderBy: { expenseDate: 'desc' },
+        take: 100,
+      })
+    );
+  })
+);
+accountingRouter.post(
+  '/expenses',
+  requirePermission('settings:update'),
+  asyncHandler(async (req, res) => {
+    const data = expenseSchema.parse(req.body);
+    res
+      .status(201)
+      .json(
+        await prisma.expense.create({
+          data: { ...data, ...scope(req), recordedByUserId: req.user!.id },
+        })
+      );
+  })
+);
+accountingRouter.get(
+  '/reconcile/cash',
+  requirePermission('reports:view'),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await prisma.cashDrawerSession.findMany({
+        where: scope(req),
+        orderBy: { openedAt: 'desc' },
+        take: 100,
+      })
+    );
+  })
+);
+export function reportDates(query: Record<string, unknown>) {
+  const body = z
+    .object({ startDate: z.coerce.date().optional(), endDate: z.coerce.date().optional() })
+    .parse(query);
+  const end = body.endDate ?? new Date();
+  const start = body.startDate ?? new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  if (start > end) fail('Invalid report date range');
+  return { gte: start, lte: end };
+}
+accountingRouter.get(
+  '/reports/pl',
+  requirePermission('reports:view'),
+  asyncHandler(async (req, res) => {
+    const dates = reportDates(req.query);
+    const [income, expenses] = await Promise.all([
+      prisma.journalEntry.aggregate({
+        where: { ...scope(req), createdAt: dates },
+        _sum: { revenue: true, gst: true },
+      }),
+      prisma.expense.groupBy({
+        by: ['category'],
+        where: { ...scope(req), expenseDate: dates },
+        _sum: { amount: true },
+      }),
+    ]);
+    const revenue = Number(income._sum.revenue ?? 0);
+    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e._sum.amount ?? 0), 0);
+    res.json({
+      revenue,
+      gstCollected: Number(income._sum.gst ?? 0),
+      expenses,
+      totalExpenses: money(totalExpenses),
+      netProfit: money(revenue - totalExpenses),
+    });
+  })
+);
+accountingRouter.get(
+  '/reports/gst',
+  requirePermission('reports:view'),
+  asyncHandler(async (req, res) => {
+    const invoices = await prisma.bill.findMany({
+      where: { ...scope(req), createdAt: reportDates(req.query) },
+      orderBy: { createdAt: 'asc' },
+    });
+    const tenant = await prisma.tenant.findUnique({ where: { id: req.user!.tenantId } });
+    res.json({
+      gstin: tenant?.gstin,
+      invoices: invoices.map((i) => ({
+        invoiceNumber: i.billNumber,
+        date: i.createdAt,
+        recipientGstin: i.customerGstin,
+        taxableValue: money(Number(i.subtotal) + Number(i.serviceCharge)),
+        tax: i.taxBreakdown,
+        gst: Number(i.taxAmount),
+        total: Number(i.total),
+      })),
+      totalTax: money(invoices.reduce((s, i) => s + Number(i.taxAmount), 0)),
+    });
+  })
+);
+accountingRouter.post(
+  '/export/tally',
+  requirePermission('reports:export'),
+  asyncHandler(async (req, res) => {
+    const bills = await prisma.bill.findMany({
+      where: { ...scope(req), createdAt: reportDates(req.body) },
+      orderBy: { createdAt: 'asc' },
+    });
+    const escape = (value: string) =>
+      value.replace(
+        /[<>&"']/g,
+        (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]!
+      );
+    res
+      .type('application/xml')
+      .send(
+        '<ENVELOPE><BODY><IMPORTDATA><REQUESTDATA>' +
+          bills
+            .map(
+              (b) =>
+                `<TALLYMESSAGE><VOUCHER VCHTYPE="Sales"><DATE>${b.createdAt.toISOString().slice(0, 10).replace(/-/g, '')}</DATE><VOUCHERNUMBER>${escape(b.billNumber)}</VOUCHERNUMBER><ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><AMOUNT>${Number(b.total)}</AMOUNT></ALLLEDGERENTRIES.LIST></VOUCHER></TALLYMESSAGE>`
+            )
+            .join('') +
+          '</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>'
+      );
+  })
+);
+export const drawerRouter = Router();
+drawerRouter.use(authenticate, requireOutletAccess);
+drawerRouter.get(
+  '/',
+  requirePermission('view_tables'),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await prisma.cashDrawerSession.findFirst({ where: { ...scope(req), status: 'OPEN' } })
+    );
+  })
+);
+drawerRouter.post(
+  '/open',
+  requirePermission('cash-drawer:open'),
+  asyncHandler(async (req, res) => {
+    const body = z
+      .object({ openingAmount: z.number().nonnegative().multipleOf(0.01) })
+      .parse(req.body);
+    const drawer = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${req.user!.tenantId + ':drawer:' + req.outletId}))::text`;
+      if (await tx.cashDrawerSession.findFirst({ where: { ...scope(req), status: 'OPEN' } }))
+        fail('Drawer already open', 409);
+      const session = await tx.cashDrawerSession.create({
+        data: {
+          ...scope(req),
+          openingAmount: body.openingAmount,
+          expectedClosingAmount: body.openingAmount,
+          openedByUserId: req.user!.id,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          ...scope(req),
+          userId: req.user!.id,
+          action: 'cash_drawer_open',
+          entityType: 'cash_drawer',
+          entityId: session.id,
+          afterState: { openingAmount: body.openingAmount },
+          ipAddress: req.ip ?? 'unknown',
+          deviceId: String(req.headers['x-device-id'] ?? 'unknown'),
+        },
+      });
+      return session;
+    });
+    res.status(201).json(drawer);
+  })
+);
+drawerRouter.post(
+  '/close',
+  requirePermission('cash-drawer:close'),
+  asyncHandler(async (req, res) => {
+    const body = z
+      .object({ actualClosingAmount: z.number().nonnegative().multipleOf(0.01) })
+      .parse(req.body);
+    const drawer = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${req.user!.tenantId + ':drawer:' + req.outletId}))::text`;
+      const session = await tx.cashDrawerSession.findFirst({
+        where: { ...scope(req), status: 'OPEN' },
+      });
+      if (!session) fail('No open drawer', 404);
+      const variance = money(body.actualClosingAmount - Number(session.expectedClosingAmount));
+      if (variance !== 0 && !['ADMIN', 'MANAGER'].includes(req.user!.role))
+        fail('A manager must verify and close a drawer with variance', 403);
+      const result = await tx.cashDrawerSession.update({
+        where: { id: session.id, status: 'OPEN' },
+        data: {
+          ...body,
+          variance,
+          closedAt: new Date(),
+          closedByUserId: req.user!.id,
+          status: 'CLOSED',
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          ...scope(req),
+          userId: req.user!.id,
+          action: 'cash_drawer_close',
+          entityType: 'cash_drawer',
+          entityId: session.id,
+          afterState: {
+            expected: Number(session.expectedClosingAmount),
+            actual: body.actualClosingAmount,
+            variance,
+          },
+          ipAddress: req.ip ?? 'unknown',
+          deviceId: String(req.headers['x-device-id'] ?? 'unknown'),
+        },
+      });
+      return result;
+    });
+    res.json(drawer);
+  })
+);

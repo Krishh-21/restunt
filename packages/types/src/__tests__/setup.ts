@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { EmailSchema, PhoneSchema } from '../validation';
 /**
  * Test setup file for @dinely/types package
  * Global test configuration and utilities
@@ -5,6 +7,9 @@
 
 // Extend expect matchers if needed
 declare global {
+  var generateTestId: () => string;
+  var createMockOrder: () => Record<string, unknown>;
+  var createMockMenuItem: () => Record<string, unknown>;
   namespace jest {
     interface Matchers<R> {
       toBeValidUUID(): R;
@@ -19,7 +24,7 @@ expect.extend({
   toBeValidUUID(received: string) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const pass = uuidRegex.test(received);
-    
+
     if (pass) {
       return {
         message: () => `expected ${received} not to be a valid UUID`,
@@ -32,11 +37,10 @@ expect.extend({
       };
     }
   },
-  
+
   toBeValidEmail(received: string) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const pass = emailRegex.test(received);
-    
+    const pass = EmailSchema.safeParse(received).success;
+
     if (pass) {
       return {
         message: () => `expected ${received} not to be a valid email`,
@@ -49,11 +53,10 @@ expect.extend({
       };
     }
   },
-  
+
   toBeValidPhone(received: string) {
-    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-    const pass = phoneRegex.test(received);
-    
+    const pass = PhoneSchema.safeParse(received).success;
+
     if (pass) {
       return {
         message: () => `expected ${received} not to be a valid phone number`,
@@ -69,7 +72,7 @@ expect.extend({
 });
 
 // Global test utilities
-global.generateTestId = () => `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+global.generateTestId = () => randomUUID();
 
 global.createMockOrder = () => ({
   id: generateTestId(),

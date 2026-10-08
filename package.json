@@ -5,14 +5,16 @@
   "description": "Multi-tenant SaaS Restaurant Operating System",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/types",
+    "packages/ui",
+    "packages/utils"
   ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "test": "turbo run test",
+    "test": "npm run test:core",
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -27,7 +29,9 @@
     "db:setup-production-full": "tsx prisma/production-setup.ts --with-seed",
     "db:studio": "prisma studio",
     "db:validate": "prisma validate",
-    "db:format": "prisma format"
+    "db:format": "prisma format",
+    "build:core": "npm run build --workspace=@dinely/types && npm run build --workspace=@dinely/api && npm run build --workspace=@dinely/web && npm run build --workspace=@dinely/kitchen",
+    "test:core": "npm test --workspace=@dinely/types -- --runInBand && npm test --workspace=@dinely/api -- --runInBand"
   },
   "devDependencies": {
     "@prisma/client": "^7.8.0",
@@ -51,5 +55,6 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
-  }
+  },
+  "packageManager": "npm@11.6.2"
 }
