@@ -1,3 +1,4 @@
+import { normalizeModifierConfiguration } from '../services/orderModifiers';
 import { asyncHandler } from '../lib/asyncHandler';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -63,10 +64,13 @@ menuRouter.get(
       },
     });
 
+    const outlet=await prisma.outlet.findFirst({where:{id:outletId,tenantId}});
+    const settings=outlet?.settings as {serviceChargePercent?:number;taxRates?:unknown}|null;
     res.json({
+      pricing:{serviceChargePercent:settings?.serviceChargePercent??10,taxRates:settings?.taxRates??[{category:'food',cgst:2.5,sgst:2.5}]},
       categories: categories.map(({ menuItems, ...category }) => ({
         ...category,
-        items: menuItems,
+        items: menuItems.map(item=>({...item,modifiers:normalizeModifierConfiguration(item.modifiers),taxCategory:category.taxCategory??'food'})),
       })),
     });
   })

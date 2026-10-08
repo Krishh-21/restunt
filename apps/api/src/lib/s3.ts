@@ -1,15 +1,15 @@
+import './loadEnv';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const region = process.env.AWS_REGION || 'us-east-1';
-const bucketName = process.env.AWS_BUCKET_NAME || 'dinely-assets';
+const bucketName = process.env.AWS_BUCKET_NAME;
+function requiredBucket(){if(!bucketName)throw new Error('AWS_BUCKET_NAME is not configured');return bucketName;}
 
 export const s3Client = new S3Client({
   region,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'mock-key',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'mock-secret',
-  },
+  // Standard AWS chain supports instance roles, web identity, profiles and env keys.
+
 });
 
 /**
@@ -21,7 +21,7 @@ export async function uploadToS3(
   contentType?: string
 ): Promise<string> {
   const command = new PutObjectCommand({
-    Bucket: bucketName,
+    Bucket: requiredBucket(),
     Key: key,
     Body: body,
     ContentType: contentType,
@@ -46,7 +46,7 @@ export async function getPresignedUrl(
   expiresInSeconds = 3600
 ): Promise<string> {
   const command = new GetObjectCommand({
-    Bucket: bucketName,
+    Bucket: requiredBucket(),
     Key: key,
   });
 

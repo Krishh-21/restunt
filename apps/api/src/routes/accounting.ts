@@ -1,3 +1,4 @@
+import { notifyManagers } from '../services/notificationService';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
@@ -233,6 +234,7 @@ drawerRouter.post(
       });
       return result;
     });
+    if(Number(drawer.variance)!==0)void notifyManagers(req.user!.tenantId,req.outletId!,'cash:variance','Cash drawer variance','Closing variance: '+drawer.variance).catch(()=>console.error('Cash notification could not be recorded'));
     res.json(drawer);
   })
 );

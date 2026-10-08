@@ -949,3 +949,45 @@ model JournalEntry {
   @@map("journal_entries")
   @@schema("tenant")
 }
+
+// Durable acknowledgements are committed in the same transaction as offline effects.
+model SyncOperation {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ outletId String @map("outlet_id")
+ operationId String @map("operation_id")
+ userId String @map("user_id")
+ fingerprint String
+ result Json
+ createdAt DateTime @default(now())
+ @@unique([tenantId,outletId,operationId])
+ @@schema("tenant")
+}
+
+model NotificationPreference {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ userId String @map("user_id")
+ email Boolean @default(false)
+ push Boolean @default(false)
+ events String[]
+ pushTokens String[]
+ @@unique([tenantId,userId])
+ @@schema("tenant")
+}
+model NotificationDelivery {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ outletId String @map("outlet_id")
+ userId String @map("user_id")
+ event String
+ title String
+ body String
+ channels String[]
+ emailSentAt DateTime?
+ pushSentAt DateTime?
+ readAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([tenantId,userId,createdAt])
+ @@schema("tenant")
+}

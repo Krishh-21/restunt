@@ -125,7 +125,7 @@ export default function ManagementPage() {
   const [end, setEnd] = useState(new Date().toISOString().slice(0, 10));
   const [all, setAll] = useState(false);
   const request = async (path: string, method = 'GET', body?: unknown) => {
-    const response = await fetch((import.meta.env.VITE_API_URL || '') + path, {
+    const response = await fetch(((globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl ?? import.meta.env.VITE_API_URL ?? '') + path, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -183,6 +183,7 @@ export default function ManagementPage() {
       setBusy(false);
     }
   }
+  async function exportData(){setBusy(true);setError('');try{const response=await fetch(((globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl ?? import.meta.env.VITE_API_URL ?? '')+'/api/export',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({startDate:start,endDate:end+'T23:59:59.999Z'})});if(!response.ok)throw new Error((await response.json()).error?.message||'Export failed');const blob=await response.blob();JSON.parse(await blob.text());const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='dinely-export-'+new Date().toISOString().slice(0,10)+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
   async function drawerAction() {
     const amount = window.prompt(drawer.data ? 'Counted cash at closing' : 'Opening cash amount');
     if (amount === null) return;
@@ -194,6 +195,7 @@ export default function ManagementPage() {
   return (
     <Layout title="Restaurant management" showBack onBack={() => window.history.back()}>
       <div className="space-y-6">
+        {user?.role==='ADMIN'&&<button disabled={busy} onClick={()=>void exportData()} className="border rounded p-3">Export restaurant data (selected date range)</button>}
         <div className="flex flex-wrap gap-2">
           {['Dashboard', ...Object.keys(sections)].map((name) => (
             <button

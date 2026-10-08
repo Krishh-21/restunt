@@ -11,11 +11,12 @@ export function offlineStore() {
   }
   return current.store;
 }
-export async function flushOffline() {
+let flushing:Promise<void>|undefined;
+async function performFlush() {
   const { token, outletId } = useAuthStore.getState();
   if (!token || !outletId || !navigator.onLine) return;
   await syncPending(offlineStore(), async (body) => {
-    const response = await fetch((import.meta.env.VITE_API_URL || '') + '/api/sync', {
+    const response = await fetch(((globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl ?? import.meta.env.VITE_API_URL ?? '') + '/api/sync', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -29,3 +30,5 @@ export async function flushOffline() {
     return data;
   });
 }
+
+export function flushOffline(){if(!flushing)flushing=performFlush().finally(()=>{flushing=undefined;});return flushing;}

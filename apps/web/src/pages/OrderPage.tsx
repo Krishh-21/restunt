@@ -17,14 +17,13 @@ export default function OrderPage() {
     updateQuantity,
     subtotal,
     setOrderId,
-    clear,
   } = useCartStore();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<MenuItemResponse | null>(null);
 
-  const { data: menuData } = useQuery({
+  const { data: menuData, error: menuError, isLoading: menuLoading } = useQuery({
     queryKey: ['menu', outletId],
     queryFn: () => api.getMenu(token!, outletId!),
     enabled: !!token && !!outletId,
@@ -51,11 +50,7 @@ export default function OrderPage() {
               modifiers: i.modifiers,
             })),
           });
-      if (order.pendingSync) {
-        clear();
-        navigate('/tables');
-        return;
-      }
+      if (order.pendingSync) {setOrderId(order.id);navigate('/payment');return;}
       setOrderId(order.id);
       await api.generateKOT(token!, outletId!, order.id);
       navigate('/payment');
@@ -70,6 +65,8 @@ export default function OrderPage() {
 
   return (
     <Layout title={`Table ${tableNumber}`} showBack onBack={() => navigate('/tables')}>
+      {menuLoading&&<p role="status">Loading menu...</p>}
+      {!!menuError&&<p role="alert">Menu unavailable: {(menuError as Error).message}</p>}
       {selected && (
         <div
           role="dialog"

@@ -1,6 +1,8 @@
-import { offlineStore } from './offline';
+import { calculateOrderTotals, PERMISSIONS } from '@dinely/types';
+import { operationTime } from '@dinely/utils';
+import { offlineStore, flushOffline } from './offline';
 import { useAuthStore } from '../store/authStore';
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = (globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl ?? import.meta.env.VITE_API_URL ?? '';
 
 export class ApiError extends Error {
   constructor(
@@ -35,13 +37,17 @@ async function request<T>(
     throw error;
   }
 
-  const data = await res.json();
+  let data = await res.json();
 
   if (!res.ok) {
     throw new ApiError(data.error?.code ?? 'ERROR', data.error?.message ?? 'Request failed');
   }
-  if ((!options.method || options.method === 'GET') && token)
-    await offlineStore().cache.put({ key: path, value: data });
+  if ((!options.method || options.method === 'GET') && token) {
+    const store=offlineStore(), pending=await store.operations.toArray();
+    if(path.startsWith('/api/pos/orders/')&&pending.some(p=>p.type==='order:settle'&&[(p.payload as {orderId:string}).orderId].some(id=>id===data.id||id==='offline:'+data.clientOperationId))&&data.status!=='SETTLED')data={...data,paymentStatus:'PENDING_SYNC',pendingSync:true};
+    if(path==='/api/pos/tables')data=data.map((table:TableResponse)=>{const create=pending.find(p=>p.type==='order:create'&&(p.payload as {tableId?:string}).tableId===table.id);return create?{...table,status:'OCCUPIED',currentOrderId:'offline:'+create.id}:table;});
+    await store.cache.put({ key: path, value: data });
+  }
   return data as T;
 }
 
@@ -56,7 +62,7 @@ export const api = {
     ),
 
   getMenu: (token: string, outletId: string) =>
-    request<{ categories: MenuCategoryResponse[] }>('/api/menu', {}, token, outletId),
+    request<{ categories: MenuCategoryResponse[];pricing:{serviceChargePercent:number;taxRates:{category:string;cgst:number;sgst:number}[]} }>('/api/menu', {}, token, outletId),
 
   getTables: (token: string, outletId: string) =>
     request<TableResponse[]>('/api/pos/tables', {}, token, outletId),
@@ -76,7 +82,7 @@ export const api = {
     }
   ) => {
     const id = crypto.randomUUID(),
-      createdAt = new Date().toISOString();
+      createdAt = operationTime();
     try {
       return await request<OrderResponse>(
         '/api/pos/orders',
@@ -91,44 +97,36 @@ export const api = {
       if (error instanceof ApiError) throw error;
       const user = useAuthStore.getState().user;
       if (!user) throw error;
-      await offlineStore().operations.put({
-        id,
-        userId: user.id,
-        createdAt,
-        type: 'order:create',
-        payload: body,
-      });
-      return {
-        id: 'offline:' + id,
-        pendingSync: true,
-        orderNumber: 'Pending sync',
-        status: 'DRAFT',
-        items: [],
-        subtotal: 0,
-        taxAmount: 0,
-        serviceCharge: 0,
-        discountAmount: 0,
-        total: 0,
-        invoiceNumber: null,
-      } as OrderResponse;
+      const store=offlineStore();const cached=(await store.cache.get('/api/menu'))?.value as {categories:MenuCategoryResponse[];pricing:{serviceChargePercent:number;taxRates:{category:string;cgst:number;sgst:number}[]}}|undefined;
+      if(!cached?.pricing)throw new Error('Load the menu online once before creating offline orders');
+      const lines=body.items.map((line,index)=>{const menu=cached.categories.flatMap(c=>c.items).find(i=>i.id===line.menuItemId);if(!menu)throw new Error('Item is missing from the offline menu');return {...line,id:id+':'+index,menuItemName:menu.name,unitPrice:menu.price,taxCategory:menu.taxCategory??'food'};});
+      const totals=calculateOrderTotals({items:lines.map(line=>({...line,unitPrice:Number(line.unitPrice),modifiers:line.modifiers??[]})),serviceChargePercent:cached.pricing.serviceChargePercent,discountAmount:0,taxRates:cached.pricing.taxRates});
+      const local={id:'offline:'+id,pendingSync:true,orderNumber:'Provisional '+id.slice(0,8),status:'SUBMITTED',items:lines,...totals,invoiceNumber:null} as OrderResponse;
+      await store.transaction('rw',store.operations,store.cache,async()=>{await store.operations.put({id,userId:user.id,createdAt,type:'order:create',payload:body});await store.cache.put({key:'/api/pos/orders/'+local.id,value:local});const tables=(await store.cache.get('/api/pos/tables'))?.value as TableResponse[]|undefined;if(tables&&body.tableId)await store.cache.put({key:'/api/pos/tables',value:tables.map(t=>t.id===body.tableId?{...t,status:'OCCUPIED',currentOrderId:local.id}:t)});});
+      return local;
     }
   },
 
   generateKOT: (token: string, outletId: string, orderId: string) =>
     request('/api/pos/orders/' + orderId + '/kot', { method: 'POST' }, token, outletId),
 
-  settleOrder: (token: string, outletId: string, orderId: string, paymentMethod: string) =>
-    request<OrderResponse>(
-      '/api/pos/orders/' + orderId + '/settle',
-      { method: 'POST', body: JSON.stringify({ paymentMethod }) },
-      token,
-      outletId
-    ),
+  settleOrder: async (token:string,outletId:string,orderId:string,paymentMethod:string) => {
+    const actor=useAuthStore.getState().user;const permissions:readonly string[]=actor?(PERMISSIONS[actor.role]??[]):[];
+    if(!permissions.includes('*')&&!['payments:process','cash-drawer:manage'].some(permission=>permissions.includes(permission)))throw new Error('This staff role cannot record payments');
+    if(paymentMethod==='online'){if(!navigator.onLine)throw new Error('Gateway settlement requires an online connection');return request<OrderResponse>('/api/pos/orders/'+orderId+'/settle',{method:'POST',body:JSON.stringify({paymentMethod})},token,outletId);}
+    if(navigator.onLine&&!orderId.startsWith('offline:')){try{await request<OrderResponse>('/api/pos/orders/'+orderId,{},token,outletId);}catch(error){if(error instanceof ApiError)throw error;}}
+    if(!['cash','card','upi','wallet'].includes(paymentMethod))throw new Error('Gateway payments require an online connection');
+    const store=offlineStore(),user=useAuthStore.getState().user;const order=(await store.cache.get('/api/pos/orders/'+orderId))?.value as OrderResponse|undefined;
+    if(!user||!order)throw new Error('Load this order online before recording an offline payment');
+    if(order.paymentStatus==='PENDING_SYNC'||order.status==='SETTLED')throw new Error('Payment is already recorded');
+    const id=crypto.randomUUID();const local={...order,pendingSync:true,paymentStatus:'PENDING_SYNC',paymentMethod,invoiceNumber:null};
+    await store.transaction('rw',store.operations,store.cache,async()=>{await store.operations.put({id,userId:user.id,createdAt:operationTime(),type:'order:settle',payload:{orderId,expectedTotal:Number(order.total),paymentMethod}});await store.cache.put({key:'/api/pos/orders/'+orderId,value:local});});
+    await flushOffline().catch(()=>undefined);const refreshed=(await store.cache.get('/api/pos/orders/'+orderId))?.value as OrderResponse|undefined;return refreshed?.status==='SETTLED'?refreshed:local;
+  },
 
   getInvoice: (token: string, outletId: string, orderId: string) =>
     request<OrderResponse>('/api/pos/orders/' + orderId + '/invoice', {}, token, outletId),
-  getOrder: (token: string, outletId: string, orderId: string) =>
-    request<OrderResponse>('/api/pos/orders/' + orderId, {}, token, outletId),
+  getOrder: async (token: string, outletId: string, orderId: string) => {if(orderId.startsWith('offline:')){const cached=await offlineStore().cache.get('/api/pos/orders/'+orderId);if(cached)return cached.value as OrderResponse;}return request<OrderResponse>('/api/pos/orders/'+orderId,{},token,outletId);},
 };
 
 export interface MenuCategoryResponse {
@@ -138,6 +136,7 @@ export interface MenuCategoryResponse {
 }
 
 export interface MenuItemResponse {
+  taxCategory?:string;
   modifiers?: {
     name: string;
     type?: 'single' | 'multiple';
@@ -188,3 +187,4 @@ export interface OrderResponse {
 export function formatCurrency(amount: number | string): string {
   return `₹${Number(amount).toFixed(2)}`;
 }
+

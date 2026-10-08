@@ -16,18 +16,19 @@ export default function Layout({ title, children, showBack, onBack }: LayoutProp
   const { user, logout, token, outletId } = useAuthStore();
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0);
+  const [conflicts,setConflicts]=useState<{id:string;error?:string;type:string}[]>([]);
   const [syncError, setSyncError] = useState('');
   const client = useQueryClient();
   useEffect(() => {
     const refresh = () => {
       setOnline(navigator.onLine);
-      if (user) void offlineStore().operations.count().then(setPending);
+      if (user) void offlineStore().operations.toArray().then(rows=>{setPending(rows.length);setConflicts(rows.filter(row=>row.error));}).catch(e=>setSyncError(e.message));
     };
     const sync = () => {
       refresh();
       void flushOffline()
         .then(() => {
-          refresh();
+          setSyncError('');refresh();
           void client.invalidateQueries();
         })
         .catch((e) => setSyncError(e.message));
@@ -35,8 +36,9 @@ export default function Layout({ title, children, showBack, onBack }: LayoutProp
     window.addEventListener('online', sync);
     window.addEventListener('offline', refresh);
     const timer = window.setInterval(refresh, 3000);
+    const syncTimer=window.setInterval(sync,30000);
     sync();
-    const socket = io(import.meta.env.VITE_API_URL || window.location.origin, {
+    const socket = io((globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl || import.meta.env.VITE_API_URL || window.location.origin, {
       auth: { token, outletId },
     });
     for (const event of [
@@ -52,6 +54,7 @@ export default function Layout({ title, children, showBack, onBack }: LayoutProp
       window.removeEventListener('online', sync);
       window.removeEventListener('offline', refresh);
       window.clearInterval(timer);
+      window.clearInterval(syncTimer);
       socket.disconnect();
     };
   }, [token, outletId, user, client]);
@@ -72,6 +75,7 @@ export default function Layout({ title, children, showBack, onBack }: LayoutProp
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link to="/notifications" className="text-sm">Notifications</Link>
             <Link to="/manage" className="text-sm">
               Management
             </Link>
@@ -84,6 +88,7 @@ export default function Layout({ title, children, showBack, onBack }: LayoutProp
           </div>
         </div>
       </header>
+      {!!pending&&<div className="p-3 bg-amber-50"><button onClick={()=>void flushOffline().then(()=>client.invalidateQueries()).catch(e=>setSyncError(e.message))} className="border rounded px-3 py-1">Retry synchronization</button>{conflicts.map(row=><p role="alert" key={row.id}>{row.type}: {row.error} — operation {row.id}. Your recorded action is retained for review.</p>)}</div>}
       {syncError && (
         <p role="alert" className="p-4 text-red-700">
           Sync needs attention: {syncError}

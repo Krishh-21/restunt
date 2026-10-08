@@ -53,11 +53,11 @@ posOrdersRouter.get(
         outletId: req.outletId as string,
         ...(status && { status: status.toUpperCase() as 'DRAFT' }),
       },
-      include: { items: true },
+      include: { items: true, bills:{select:{billNumber:true},take:1} },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    res.json(orders);
+    res.json(orders.map(({bills,...order})=>({...order,invoiceNumber:bills[0]?.billNumber??null})));
   })
 );
 
@@ -112,13 +112,13 @@ posOrdersRouter.get(
         tenantId: req.user!.tenantId,
         outletId: req.outletId as string,
       },
-      include: { items: true },
+      include: { items: true, bills:{select:{billNumber:true},take:1} },
     });
     if (!order) {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
       return;
     }
-    res.json(order);
+    res.json({...order,invoiceNumber:order.bills[0]?.billNumber??null});
   })
 );
 

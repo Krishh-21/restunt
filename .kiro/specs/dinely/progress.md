@@ -1,18 +1,24 @@
 # Dinely progress audit — 2026-10-08
 
-Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 73 partial, 48 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
+Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 79 partial, 42 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
 
 ## Work delivered
 
 All nine active workspaces now build. Captain, QR Menu and Online Store have working source apps. POS includes modifiers, resuming occupied tables, invoice details and offline order replay. Management includes inventory, procurement, CRM, staff, expenses, cash drawers and analytics. Settlement atomically records bill, stock deduction, loyalty and revenue. Discount consumption and same-unit stock transfers are transactional. Stripe/Razorpay have signed webhook adapters; Twilio/reconciliation workers call real services rather than simulated success.
 
+## Portable setup and offline follow-up
+
+Added reusable Docker single-origin hosting for all five apps, generated private `.env` secrets, grouped configuration validation, one-time restaurant provisioning, readiness checks and a detailed portable hosting guide. POS/Captain now persist provisional manual payment records with durable server replay receipts; status replay uses expected-state checks. Conflicts retain recorded payments, and refreshes preserve pending payment/table markers. App shells have scoped service workers. Offline and server pricing now use the same calculation function. New tests cover IndexedDB durability, network failures, bounded batches, aliases, conflicts, amount rollback and replay. Complete offline editing/voiding and generic vector merge remain unfinished.
+
+Added encrypted PostgreSQL custom-format backups, private S3 upload, scheduled Bull jobs and authenticated decryption that never overwrites destinations. CI now exercises container startup, five frontend bundles, readiness and isolated backup restore. Added manager in-app/email notification preferences and retryable SMTP/FCM server adapters. Browser push-token enrollment, transactional notification outbox and local retention pruning remain gaps. Compatible dependency updates remove the previously reported critical advisories; remaining dependency advisories require further maintenance.
+
 ## Evidence
 
-The first complete CI run passed all workspace builds, migration deployment and four real PostgreSQL tests: duplicate operation replay, concurrent settlement, transaction rollback and foreign-tenant rejection. The follow-up CI run also passed all workspaces, the updated migration, repeated demo seeding and database tests. Payment regression tests pass locally and are included in the final PR checks. Local unit/property tests pass; database tests are intentionally skipped locally without a dedicated `_test` database. See the PR checks for the final commit evidence. Browser end-to-end testing, provider sandbox/live callbacks, Docker execution and production deployment are not verified here.
+The first complete CI run passed all workspace builds, migration deployment and four real PostgreSQL tests: duplicate operation replay, concurrent settlement, transaction rollback and foreign-tenant rejection. The follow-up CI run also passed all workspaces, the updated migration, repeated demo seeding and database tests. Payment regression tests pass locally and are included in the final PR checks. Local unit/property tests pass; database tests are intentionally skipped locally without a dedicated `_test` database. See the PR checks for the final commit evidence. A Chromium offline order/payment/reload/reconnect acceptance smoke is included in the follow-up CI. Provider sandbox/live callbacks and production deployment are not verified here. Follow-up Docker/database CI results are recorded in the pull request checks.
 
 ## Unfinished requirements
 
-The full specification is **not complete**. Dedicated per-restaurant schemas/read replicas, complete offline edits/payments/vector merges, printer transport, gateway refunds, delivery/driver maps, aggregator contracts, push/SMTP notifications, campaign scheduling, real backups/restore, Sentry/Datadog/ECS deployment, performance acceptance and many requested UI/property/integration tests remain. Some modules above implement a narrower useful workflow than the full task. No cloud/provider accounts or established hosting target were available, and no production deployment was performed. The request for staging/service account configuration remains unanswered.
+The full specification is **not complete**. Dedicated per-restaurant schemas/read replicas, complete offline edits/voids/vector merges, printer transport, gateway refunds, delivery/driver maps, aggregator contracts, browser push enrollment, campaign scheduling, provider backup/restore acceptance, Sentry/Datadog/ECS deployment, performance acceptance and many requested UI/property/integration tests remain. Some modules above implement a narrower useful workflow than the full task. No cloud/provider accounts or established hosting target were available, and no production deployment was performed. The user chose portable Docker without a hosting provider.
 
 Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table below records source evidence and gaps explicitly; unchecked work has not been silently declared complete.
 
@@ -66,7 +72,7 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 11.6 Write property test for loyalty tier assignment | Partial | Tier boundary unit tests; property generator remains. |
 | 11.7 Write property test for loyalty points redemption validation | Pending | Optional test not implemented. |
 | 12.1 Create feedback collection API | Partial | Staff feedback collection API; customer link/form remains. |
-| 12.2 Implement feedback alerts and responses | Partial | Negative-feedback socket alerts and responses; push/email delivery remains. |
+| 12.2 Implement feedback alerts and responses | Partial | Negative-feedback alerts/responses and retryable SMTP/FCM adapters with preferences; browser enrollment/provider acceptance remain. |
 | 13.1 Create discount code management API | Implemented | Validated tenant discount creation/listing/deactivation; caps, dates, items, outlets and usage fields. |
 | 13.2 Implement discount validation and application | Partial | Discount eligibility and locked usage consumption at settlement, manager restriction; threshold audit workflow remains. |
 | 13.3 Write unit tests for discount validation logic | Implemented | Tests cover validity, usage, minimum amount, caps and eligible items. |
@@ -86,9 +92,9 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 17.3 Implement inter-outlet stock transfer | Partial | Atomic same-unit transfer and receiving weighted cost; transfer document/approval workflow remains. |
 | 17.4 Implement central menu management with outlet overrides | Pending | No implementation found for this task. |
 | 17.5 Implement unified customer profiles across outlets | Implemented | Customer identity and loyalty shared by tenant across outlets with scoped order access. |
-| 19.1 Set up Firebase Cloud Messaging for push notifications | Pending | No implementation found for this task. |
-| 19.2 Implement notification triggers and preferences | Pending | No implementation found for this task. |
-| 19.3 Set up SMTP integration for email alerts | Pending | No implementation found for this task. |
+| 19.1 Set up Firebase Cloud Messaging for push notifications | Partial | Real FCM server adapter and token preferences; browser enrollment and configured provider validation remain. |
+| 19.2 Implement notification triggers and preferences | Partial | Low-stock, negative-feedback, void and cash-variance triggers with in-app/email preferences; transactional outbox remains. |
+| 19.3 Set up SMTP integration for email alerts | Partial | Retryable SMTP delivery and opt-in UI with failure/duplicate-send tests; sender/provider acceptance remains. |
 | 20.1 Set up Twilio WhatsApp Business API integration | Partial | Real Twilio approved-template worker with consent/E.164 validation; credentials and provider validation remain. |
 | 20.2 Implement transactional messaging | Pending | No implementation found for this task. |
 | 20.3 Implement marketing campaign management | Pending | No implementation found for this task. |
@@ -109,12 +115,12 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 24.1 Create user management API | Partial | Staff creation/edit/deactivation, safe field projection, hashing, assignments and admin restrictions; complete staff UI remains. |
 | 24.2 Implement role-based access control enforcement | Partial | API permissions/outlet checks and current account refresh; exhaustive RBAC route coverage remains. |
 | 24.3 Write integration tests for RBAC | Pending | Optional test not implemented. |
-| 25.1 Create data export API | Pending | No implementation found for this task. |
-| 25.2 Implement automated backup system | Pending | No implementation found for this task. |
-| 25.3 Write integration tests for backup system | Pending | Optional test not implemented. |
+| 25.1 Create data export API | Partial | Admin-only streaming tenant JSON export with bounded batches/date filters and UI download; formal data-portability acceptance remains. |
+| 25.2 Implement automated backup system | Partial | Scheduled AES-256-GCM pg_dump backups, private S3 adapter and recovery tooling; retention pruning and provider acceptance remain. |
+| 25.3 Write integration tests for backup system | Partial | Crypto tamper/roundtrip tests and CI isolated PostgreSQL restore smoke; actual S3/provider acceptance remains. |
 | 27.1 Set up IndexedDB storage with Dexie.js | Partial | Dexie operation queue and authenticated scoped GET cache; complete local entity model remains. |
 | 27.2 Implement offline mode detection and visual indicators | Implemented | Network and pending-sync indicator with reconnect processing. |
-| 27.3 Implement offline operations for POS | Partial | Durable create-order queue; offline payments, edits and voids remain. |
+| 27.3 Implement offline operations for POS | Partial | Durable create/manual-payment queue with replay receipts; complete offline edits and voids remain. |
 | 27.4 Write property test for offline operations resilience | Pending | Optional test not implemented. |
 | 28.1 Create sync queue in IndexedDB | Implemented | UUID-attributed queued creates retained until acknowledgement; conflicts preserved. |
 | 28.2 Implement vector clock management | Partial | Vector comparison utility exists; protocol does not yet merge vector clocks. |
@@ -135,7 +141,7 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 30.3 Implement Captain App order creation with offline support | Partial | Shared POS/table ordering and durable create replay; dedicated captain assignment and complete sync remain. |
 | 32.1 Create POS UI components | Partial | Tables, modifiers, cart, payment/invoice and management screens; full operational UX remains. |
 | 32.2 Integrate POS UI with backend APIs | Partial | API-connected workflows; browser end-to-end acceptance remains. |
-| 32.3 Implement POS offline mode with IndexedDB | Partial | Cached menus/tables and offline order creation; full offline payment/edit scope remains. |
+| 32.3 Implement POS offline mode with IndexedDB | Partial | Cached app shell/menu/tables, queued create/manual payments and reconnect replay; complete offline edits remain. |
 | 32.4 Integrate POS with Socket.IO for real-time updates | Implemented | Socket-driven query refresh and reconnect/polling fallback. |
 | 32.5 Write UI component tests for POS | Pending | Optional test not implemented. |
 | 33.1 Create KDS UI components | Partial | apps/kitchen/src; rush indicators and browser/component tests remain. |

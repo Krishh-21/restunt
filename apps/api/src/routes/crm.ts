@@ -1,3 +1,4 @@
+import { notifyManagers } from '../services/notificationService';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
@@ -241,6 +242,7 @@ crmRouter.post(
         id: feedback.id,
         rating: body.overallRating,
       });
+    if(body.overallRating<3)void notifyManagers(req.user!.tenantId,req.outletId!,'feedback:negative','Negative customer feedback',body.comments??'A customer rated their experience below three stars.').catch(()=>console.error('Feedback notification could not be recorded'));
     res.status(201).json(feedback);
   })
 );

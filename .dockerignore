@@ -8,3 +8,8 @@ node_modules
 .turbo
 **/.turbo
 outputs
+
+.data
+secrets
+*.dump
+*.dump.aes

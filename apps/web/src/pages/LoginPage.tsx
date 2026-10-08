@@ -73,7 +73,7 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <p className="text-xs text-gray-400 text-center mt-6">Demo: admin / Admin@123</p>
+        <p className="text-xs text-gray-400 text-center mt-6">Demo database only: restaurant demo / admin / admin123</p>
       </div>
     </div>
   );

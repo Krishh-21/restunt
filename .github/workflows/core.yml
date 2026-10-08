@@ -34,3 +34,25 @@ jobs:
       - run: npm run db:seed
       - run: npm run db:seed
       - run: npm run test:core
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run setup:env
+      - run: docker compose up -d --build
+      - run: node scripts/docker-smoke.mjs
+      - run: docker compose exec -T api node node_modules/tsx/dist/cli.mjs prisma/seed.ts
+      - run: node scripts/browser-smoke.mjs
+      - run: docker compose exec -T -e BACKUP_SMOKE_TEST=true api node node_modules/tsx/dist/cli.mjs scripts/backup-smoke.ts
+      - name: Container diagnostics
+        if: failure()
+        run: docker compose logs --tail=80 api
+      - name: Stop isolated test containers
+        if: always()
+        run: docker compose down -v

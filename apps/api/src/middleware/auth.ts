@@ -84,6 +84,8 @@ const permissionNames: Record<string, string[]> = {
   manage_users: ['users:update'],
 };
 
+export function hasPermission(role:UserRole,permission:string){const list:readonly string[]=PERMISSIONS[role]??[];return list.includes('*')||(permissionNames[permission]??[permission]).some(p=>list.includes(p));}
+
 export function requirePermission(...permissions: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
