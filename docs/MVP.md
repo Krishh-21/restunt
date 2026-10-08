@@ -42,7 +42,7 @@ All five browser apps use the Dinely name and shared D favicon. The GitHub repos
 
 ## Prepare staff accounts offline
 
-Run `npm run setup:staff -- --prepare` once. This generates unique passwords for manager, cashier, server and kitchen accounts in the ignored private file `.data/staff-accounts.json`. Edit names and placeholder emails before applying. Keep this file private; preparing credentials does not create database users.
+Run `npm run setup:staff -- --prepare` once. This generates unique passwords for manager, cashier, server and kitchen accounts in the ignored private file `.data/staff-accounts.json`. The server account also receives a private four-digit Captain PIN. Edit names and placeholder emails before applying. Keep this file private; preparing credentials does not create database users.
 
 After creating your administrator and restaurant:
 
