@@ -12,7 +12,7 @@ try {
   await page.locator('input[type=password]').fill('admin123');
   await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   await page.waitForURL('**/tables');
-  const table = page.getByRole('button', { name: /^T1 available/ });
+  const table = page.getByRole('button', { name: /^T01 available/ });
   await table.click();
   await page.getByRole('button', { name: /Start Order/ }).click();
   await page.getByRole('button', { name: /Paneer Tikka/ }).click();
@@ -53,7 +53,7 @@ try {
   assert.equal(local.value.invoiceNumber, null);
   await page.reload();
   await page.waitForURL('**/tables');
-  await page.getByRole('button', { name: /^T1 occupied/ }).waitFor();
+  await page.getByRole('button', { name: /^T01 occupied/ }).waitFor();
   assert.equal((await records('operations')).length, 2);
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
