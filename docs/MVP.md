@@ -35,3 +35,25 @@ Use `docker compose logs --tail=200 api` for application logs and `docker compos
 The previous release passed nine workspace builds, 100 core tests, real PostgreSQL migrations, Docker smoke tests, Chromium offline/reconnect flows, JSON export and encrypted backup restoration in CI. Real provider callbacks, message delivery and production deployment require your accounts and acceptance testing.
 
 The full specification is unfinished: dedicated tenant schemas, complete offline edits/voids, refunds, delivery integrations, printer hardware, campaigns, advanced monitoring and comprehensive performance/security acceptance remain incomplete. See [task progress](../.kiro/specs/dinely/progress.md). MVP delivery does not mean every specification checkbox is complete.
+
+## Branding and request logs
+
+All five browser apps use the Dinely name and shared D favicon. The GitHub repository URL remains unchanged. API request logs are JSON on stdout, with a generated `X-Request-ID`, method, route template, status and duration. Error events use the same request ID. Request bodies, query strings and authorization headers are excluded. Set `LOG_LEVEL=info` in `.env` (or error, warn, debug). Dependency workers may emit their own logs. Configure log rotation and retention on your Docker host.
+
+## Prepare staff accounts offline
+
+Run `npm run setup:staff -- --prepare` once. This generates unique passwords for manager, cashier, server and kitchen accounts in the ignored private file `.data/staff-accounts.json`. Edit names and placeholder emails before applying. Keep this file private; preparing credentials does not create database users.
+
+After creating your administrator and restaurant:
+
+```sh
+docker compose cp .data/staff-accounts.json api:/tmp/dinely-staff.json
+docker compose exec api npm run setup:staff -- --apply /tmp/dinely-staff.json
+docker compose exec api rm /tmp/dinely-staff.json
+```
+
+Existing usernames are skipped without password or role changes; their prepared passwords will not replace existing passwords. New accounts receive access to the first active outlet. Share each credential only with its intended staff member. Change names, emails and permissions through Management. The file contains passwords: move it to your password manager and remove the local copy after distribution.
+
+## Logo
+
+The Dinely logo uses a cream plate-shaped D, deep green background and amber hospitality spark. Editable vector assets: [wordmark](brand/dinely-logo.svg) and [app icon](brand/dinely-icon.svg). All five browser apps share the icon and installable-app branding.

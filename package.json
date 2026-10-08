@@ -36,7 +36,8 @@
     "backup:create": "tsx scripts/backup.ts",
     "backup:decrypt": "tsx scripts/backup-decrypt.ts",
     "setup:env": "node scripts/setup-env.mjs",
-    "setup:restaurant": "tsx scripts/setup-restaurant.ts"
+    "setup:restaurant": "tsx scripts/setup-restaurant.ts",
+    "setup:staff": "tsx scripts/setup-staff.ts"
   },
   "devDependencies": {
     "@prisma/client": "^7.8.0",

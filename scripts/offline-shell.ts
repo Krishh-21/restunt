@@ -10,7 +10,7 @@ export function offlineShell(app: string): Plugin {
       });
     },
     generateBundle(_options, bundle) {
-      const files = ['index.html', ...Object.keys(bundle).filter((name) => !name.endsWith('.map'))];
+      const files = ['index.html', 'dinely.svg', ...Object.keys(bundle).filter((name) => !name.endsWith('.map'))];
       const version = createHash('sha256')
         .update(JSON.stringify(bundle))
         .digest('hex')
@@ -33,8 +33,9 @@ if(url.href.startsWith(self.registration.scope)&&FILES.some(file=>url.href===new
           start_url: './',
           scope: './',
           display: 'standalone',
-          background_color: '#fff7ed',
-          theme_color: '#ea580c',
+          icons: [{ src: './dinely.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+          background_color: '#fff5df',
+          theme_color: '#163c34',
         }),
       });
     },

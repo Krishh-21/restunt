@@ -34,6 +34,20 @@ jobs:
       - run: npm run db:seed
       - run: npm run db:seed
       - run: npm run test:core
+      - name: Verify private staff setup and repeat safety
+        env:
+          INITIAL_RESTAURANT_NAME: Account smoke restaurant
+          INITIAL_RESTAURANT_SLUG: account-smoke
+          INITIAL_ADMIN_USERNAME: owner
+          INITIAL_ADMIN_PASSWORD: ci-only-account-smoke-password
+          INITIAL_ADMIN_EMAIL: owner@example.invalid
+          INITIAL_ADMIN_NAME: Smoke Owner
+        run: |
+          npm run setup:restaurant
+          npm run setup:staff -- --prepare
+          npm run setup:staff -- --apply | grep '"created":4'
+          npm run setup:staff -- --apply | grep '"created":0'
+
 
   docker:
     runs-on: ubuntu-latest

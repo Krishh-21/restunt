@@ -2,6 +2,8 @@
 
 A comprehensive multi-tenant SaaS platform for restaurant businesses built with TypeScript, React 18, Node.js/Express, PostgreSQL, and Redis.
 
+Start with the [Dinely MVP guide](docs/MVP.md) for accounts, deployment, operations and current limits.
+
 ## Project Structure
 
 ```

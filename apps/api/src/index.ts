@@ -7,7 +7,7 @@ import { existsSync } from 'fs';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
+import { logger, requestLogging } from './lib/logger';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -61,6 +61,7 @@ declare global {
   }
 }
 
+app.use(requestLogging);
 app.use(helmet({contentSecurityPolicy:{directives:{'upgrade-insecure-requests':config.NODE_ENV==='production'?[]:null,'script-src':["'self'",'https://checkout.razorpay.com'],'frame-src':["'self'",'https://api.razorpay.com','https://checkout.razorpay.com'],'img-src':["'self'",'data:','https:'],'connect-src':["'self'",'https:','wss:'], 'style-src':["'self'","'unsafe-inline'"]}}}));
 app.use('/api',(_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
 app.use('/api',cors({ origin: process.env.CORS_ORIGIN?.split(',').map(origin=>origin.trim()) ?? '*' }));
@@ -69,7 +70,7 @@ app.use('/api/payments/razorpay/webhook', express.raw({ type: 'application/json'
 app.use('/api/payments', paymentWebhooks);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
+
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -175,7 +176,7 @@ app.use(
         });
       return;
     }
-    console.error(err);
+    logger.error('http.error', { requestId: res.locals.requestId, status: err.status ?? 500, errorType: err.name });
     const status = err.status ?? 500;
     res
       .status(status)
@@ -193,11 +194,11 @@ void scheduleBackups().catch(error=>{console.error('Backup schedule configuratio
 const notificationTimer=setInterval(()=>{void dispatchNotifications().catch(()=>console.error('Notification dispatch failed; queued records retained'));},30000);
 
 const serverInstance = httpServer.listen(PORT, () => {
-  console.log(`🚀 Dinely API running on port ${PORT}`);
+  logger.info('server.started', { port: PORT });
 });
 
 const gracefulShutdown = async (signal: string) => {
-  console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
+  logger.info('server.shutdown', { signal });
 
   serverInstance.close((err) => {
     if (err) {

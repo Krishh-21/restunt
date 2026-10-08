@@ -64,6 +64,7 @@ export default function Layout({ title, children, showBack, onBack }: LayoutProp
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <img src={`${import.meta.env.BASE_URL}dinely.svg`} alt="Dinely" className="w-9 h-9" />
             {showBack && onBack && (
               <button onClick={onBack} className="text-gray-500 hover:text-gray-800 text-xl">
                 ←
