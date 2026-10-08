@@ -8,7 +8,7 @@ Dinely provides a POS, kitchen display, captain access, QR menu and online store
 2. Run `npm run setup:env` to generate private local secrets.
 3. Fill the six `INITIAL_*` settings in `.env`. Choose an administrator password of at least 12 characters. Never commit `.env`.
 4. Run `docker compose up -d --build`.
-5. Run `docker compose exec api npm run setup:restaurant`. This creates your restaurant, first outlet, administrator, station and tables. Repeating it preserves existing passwords.
+5. Run `docker compose exec api node node_modules/tsx/dist/cli.mjs scripts/setup-restaurant.ts`. This creates your restaurant, first outlet, administrator, station and tables. Repeating it preserves existing passwords.
 6. Open http://localhost:5000/pos/ and sign in with the restaurant slug, administrator username and password. Add menu items and staff through Management.
 7. Remove `INITIAL_ADMIN_PASSWORD` from `.env` after setup and recreate the API container. Store your secrets securely.
 
@@ -48,7 +48,7 @@ After creating your administrator and restaurant:
 
 ```sh
 docker compose cp .data/staff-accounts.json api:/tmp/dinely-staff.json
-docker compose exec api npm run setup:staff -- --apply /tmp/dinely-staff.json
+docker compose exec api node node_modules/tsx/dist/cli.mjs scripts/setup-staff.ts --apply /tmp/dinely-staff.json
 docker compose exec api rm /tmp/dinely-staff.json
 ```
 
