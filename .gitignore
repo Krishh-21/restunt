@@ -46,3 +46,9 @@ Thumbs.db
 
 # Build artifacts
 *.tsbuildinfo
+
+# Local encrypted backups, decrypted dumps and private provider credentials
+.data/
+*.dump
+*.dump.aes
+secrets/

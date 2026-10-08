@@ -1,8 +1,10 @@
+import { prisma } from './prisma';
+import { deliverNotification } from '../services/notificationService';
+import { createDatabaseBackup } from '../services/backupService';
 import {
   sendWhatsApp,
   verifyInventoryDeduction,
   reconcilePayment,
-  backupUnavailable,
 } from '../services/jobProcessors';
 import Queue from 'bull';
 import Redis, { Cluster } from 'ioredis';
@@ -65,6 +67,9 @@ export const whatsappQueue = createQueue('whatsapp-queue');
 export const inventoryQueue = createQueue('inventory-deduction-queue');
 export const paymentQueue = createQueue('payment-reconciliation-queue');
 export const backupQueue = createQueue('backup-queue');
+export const notificationQueue=createQueue('notification-queue');
+notificationQueue.process(job=>deliverNotification(job.data.id));
+export async function dispatchNotifications(){const pending=await prisma.notificationDelivery.findMany({where:{OR:[{channels:{has:'EMAIL'},emailSentAt:null},{channels:{has:'PUSH'},pushSentAt:null}],createdAt:{gte:new Date(Date.now()-7*86400000)}},take:100});for(const row of pending)await notificationQueue.add({id:row.id},{jobId:row.id});}
 
 // Log helper
 const setupQueueListeners = (queue: Queue.Queue, name: string) => {
@@ -88,7 +93,8 @@ setupQueueListeners(backupQueue, 'Backup');
 whatsappQueue.process((job) => sendWhatsApp(job.data));
 inventoryQueue.process((job) => verifyInventoryDeduction(job.data));
 paymentQueue.process((job) => reconcilePayment(job.data));
-backupQueue.process(() => backupUnavailable());
+backupQueue.process(() => createDatabaseBackup());
+export async function scheduleBackups(){if(process.env.BACKUP_ENABLED==='true')await backupQueue.add({}, {jobId:'scheduled-database-backup', repeat:{cron:process.env.BACKUP_CRON||'0 2 * * *'},removeOnComplete:20});}
 
 // Graceful close of all queues
 export const shutdownQueues = async (): Promise<void> => {
@@ -99,6 +105,7 @@ export const shutdownQueues = async (): Promise<void> => {
       inventoryQueue.close(),
       paymentQueue.close(),
       backupQueue.close(),
+      notificationQueue.close(),
     ]);
     console.log('[Queue] All queues closed successfully.');
 

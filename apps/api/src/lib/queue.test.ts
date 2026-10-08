@@ -1,3 +1,6 @@
+jest.mock('../services/notificationService',()=>({deliverNotification:jest.fn()}));
+jest.mock('./prisma',()=>({prisma:{}}));
+jest.mock('../services/backupService',()=>({createDatabaseBackup:jest.fn().mockRejectedValue(new Error('Backup adapter not configured'))}));
 jest.mock('../services/jobProcessors', () => ({
   sendWhatsApp: jest.fn().mockResolvedValue({ queued: true }),
   verifyInventoryDeduction: jest.fn().mockResolvedValue({ verified: true }),
@@ -65,6 +68,7 @@ describe('Bull Queue Infrastructure', () => {
       'inventory-deduction-queue',
       'payment-reconciliation-queue',
       'backup-queue',
+      'notification-queue',
     ];
 
     mockQueueInstances.forEach((queue) => {

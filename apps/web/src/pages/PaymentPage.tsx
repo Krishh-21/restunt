@@ -37,12 +37,14 @@ export default function PaymentPage() {
     if (order?.paymentStatus === 'PAID') setMethod('online');
   }, [order?.paymentStatus]);
 
+  useEffect(()=>{if(order?.status==='SETTLED'&&token&&outletId)void api.getInvoice(token,outletId,order.id).then(setInvoice).catch(()=>undefined);},[order?.status,token,outletId]);
+
   async function handleSettle() {
     if (!orderId) return;
     setSettling(true);
     try {
       const result = await api.settleOrder(token!, outletId!, orderId, method);
-      setInvoice(await api.getInvoice(token!, outletId!, orderId).catch(() => result));
+      setInvoice(await api.getInvoice(token!, outletId!, result.id).catch(() => result));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Payment failed');
     } finally {
@@ -62,7 +64,7 @@ export default function PaymentPage() {
           <h1 className="text-xl font-bold">{invoice.restaurantName}</h1>
           {invoice.gstin && <p>GSTIN: {invoice.gstin}</p>}
           <div className="text-green-600 text-5xl mb-4">✓</div>
-          <h2 className="text-2xl font-bold mb-2">Payment Successful</h2>
+          <h2 className="text-2xl font-bold mb-2">{invoice.pendingSync?'Payment recorded on this device':'Payment Successful'}</h2>{invoice.pendingSync&&<p role="status">Provisional receipt. Server settlement and invoice number are pending synchronization.</p>}
           <button onClick={() => window.print()} className="border rounded p-2 my-3 print:hidden">
             Print invoice
           </button>
@@ -96,7 +98,7 @@ export default function PaymentPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Invoice</span>
-              <span className="font-mono">{invoice.invoiceNumber}</span>
+              <span className="font-mono">{invoice.invoiceNumber??'Pending server allocation'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Order</span>

@@ -125,7 +125,7 @@ export default function ManagementPage() {
   const [end, setEnd] = useState(new Date().toISOString().slice(0, 10));
   const [all, setAll] = useState(false);
   const request = async (path: string, method = 'GET', body?: unknown) => {
-    const response = await fetch((import.meta.env.VITE_API_URL || '') + path, {
+    const response = await fetch(((globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl ?? import.meta.env.VITE_API_URL ?? '') + path, {
       method,
       headers: {
         'Content-Type': 'application/json',

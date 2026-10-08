@@ -1,4 +1,8 @@
-import 'dotenv/config';
+import './lib/loadEnv';
+import { notificationsRouter } from './routes/notifications';
+import { readConfiguration } from './lib/config';
+import { resolve } from 'path';
+import { existsSync } from 'fs';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -32,16 +36,18 @@ import { kdsRouter } from './routes/kds/orders';
 import { setSocketIO } from './lib/socket';
 import type { AuthUser } from '@dinely/types';
 import { redisClient, closeRedisConnection } from './lib/redis';
-import { shutdownQueues } from './lib/queue';
+import { dispatchNotifications, scheduleBackups, shutdownQueues } from './lib/queue';
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
-const PORT = process.env.PORT || 5000;
+const config = readConfiguration(process.env);
+const PORT = config.PORT;
+if(config.TRUST_PROXY)app.set('trust proxy',config.TRUST_PROXY);
 
 export const io = new SocketIOServer(httpServer, {
-  cors: { origin: process.env.CORS_ORIGIN?.split(',') ?? '*', methods: ['GET', 'POST', 'PATCH'] },
+  cors: { origin: process.env.CORS_ORIGIN?.split(',').map(origin=>origin.trim()) ?? '*', methods: ['GET', 'POST', 'PATCH'] },
 });
 
 declare global {
@@ -54,8 +60,8 @@ declare global {
   }
 }
 
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') ?? '*' }));
+app.use(helmet({contentSecurityPolicy:{directives:{'script-src':["'self'",'https://checkout.razorpay.com'],'frame-src':["'self'",'https://api.razorpay.com','https://checkout.razorpay.com'],'img-src':["'self'",'data:','https:'],'connect-src':["'self'",'https:','wss:'], 'style-src':["'self'","'unsafe-inline'"]}}}));
+app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',').map(origin=>origin.trim()) ?? '*' }));
 app.use('/api/payments/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/payments/razorpay/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/payments', paymentWebhooks);
@@ -69,7 +75,9 @@ app.get('/health', (_req: Request, res: Response) => {
 
 app.get('/ready', async (_req, res) => {
   try {
-    await Promise.all([prisma.$queryRaw`SELECT 1`, redisClient.ping()]);
+    if(redisClient.status!=='ready')throw new Error('Redis unavailable');
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    try{await Promise.race([Promise.all([prisma.$queryRaw`SELECT 1`,redisClient.ping()]),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Dependency timeout')),3000);})]);}finally{if(timer)clearTimeout(timer);}
     res.json({ status: 'ready' });
   } catch {
     res.status(503).json({ status: 'unavailable' });
@@ -86,6 +94,7 @@ app.use('/api/kds', kdsRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/inventory', procurementRouter);
 app.use('/api/crm', crmRouter);
+app.use('/api/notifications',notificationsRouter);
 app.use('/api/discounts', discountsRouter);
 app.use('/api/accounting', accountingRouter);
 app.use('/api/analytics', analyticsRouter);
@@ -97,6 +106,17 @@ app.use('/api/outlets', outletsRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/pos/cash-drawer', drawerRouter);
 
+// Only these public settings reach the browser. Never serialize process.env.
+app.get('/runtime-config.js',(_req,res)=>{res.setHeader('Cache-Control','no-store');res.type('application/javascript').send('globalThis.__DINELY_CONFIG__='+JSON.stringify({apiUrl:config.PUBLIC_API_URL??''}).replace(/</g,'\\u003c')+';');});
+if(config.SERVE_FRONTENDS){
+ for(const [prefix,name] of [['/pos','web'],['/kitchen','kitchen'],['/captain','captain'],['/qr','qr-menu'],['/store','online-store']]){
+  const directory=resolve(__dirname,'../..',name,'dist');
+  if(!existsSync(resolve(directory,'index.html')))throw new Error('Build frontend before serving '+name);
+  app.use(prefix,express.static(directory,{index:false}));
+  app.get(prefix+'/*',(req,res,next)=>{if(req.path.split('/').pop()?.includes('.'))return next();res.setHeader('Cache-Control','no-cache');res.sendFile(resolve(directory,'index.html'));});
+ }
+ app.get('/',(_req,res)=>res.redirect('/pos/'));
+}
 setSocketIO(io);
 
 io.use(async (socket, next) => {
@@ -165,6 +185,10 @@ app.use(
   }
 );
 
+void scheduleBackups().catch(error=>{console.error('Backup schedule configuration failed:',error.message);process.exitCode=1;});
+
+const notificationTimer=setInterval(()=>{void dispatchNotifications().catch(()=>console.error('Notification dispatch failed; queued records retained'));},30000);
+
 const serverInstance = httpServer.listen(PORT, () => {
   console.log(`🚀 Dinely API running on port ${PORT}`);
 });
@@ -180,6 +204,7 @@ const gracefulShutdown = async (signal: string) => {
     }
   });
 
+  clearInterval(notificationTimer);
   try {
     await shutdownQueues();
     await closeRedisConnection();

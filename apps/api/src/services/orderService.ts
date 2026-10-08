@@ -1,3 +1,5 @@
+import { notifyManagers } from './notificationService';
+import { acknowledge, replayResult, type ReplayOperation } from './syncReceipt';
 import { consumeDiscount } from './discountService';
 import { awardLoyalty } from './loyaltyService';
 import { deductRecipes } from './stockService';
@@ -219,8 +221,20 @@ export async function updateOrderStatus(
   tenantId: string,
   outletId: string,
   orderId: string,
-  status: OrderStatus
+  status: OrderStatus,
+  operation?: ReplayOperation
 ) {
+  if(operation){
+    const result=await prisma.$transaction(async tx=>{
+      const replay=await replayResult(tx,tenantId,outletId,operation);if(replay)return replay as any;
+      const current=await tx.order.findFirst({where:{id:orderId,tenantId,outletId}});if(!current)throw new Error('Order not found');
+      if(operation.expectedStatus&&current.status!==operation.expectedStatus)throw new Error('Order changed on another device; review before retrying');
+      const transitions:Partial<Record<OrderStatus,OrderStatus[]>>={DRAFT:['SUBMITTED'],SUBMITTED:['PREPARING'],PREPARING:['READY'],READY:['SERVED']};
+      if(!transitions[current.status]?.includes(status))throw new Error('Invalid order transition');
+      const updated=await tx.order.update({where:{id:orderId,tenantId,outletId,status:current.status},data:{status},include:{items:true}});
+      await acknowledge(tx,tenantId,outletId,operation,updated);return updated;
+    });emitToOutlet(tenantId,outletId,'order:updated',result);return result;
+  }
   const current = await prisma.order.findFirst({ where: { id: orderId, tenantId, outletId } });
   if (!current) throw new Error('Order not found');
   const transitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
@@ -246,7 +260,8 @@ export async function settleOrder(
   tenantId: string,
   outletId: string,
   orderId: string,
-  input: SettleOrderInput
+  input: SettleOrderInput,
+  operation?: ReplayOperation
 ) {
   const outlet = await prisma.outlet.findFirst({ where: { id: outletId, tenantId } });
   if (!outlet) throw new Error('Outlet not found');
@@ -257,6 +272,8 @@ export async function settleOrder(
     include: { items: { include: { menuItem: { include: { category: true } } } } },
   });
   if (!order) throw new Error('Order not found');
+  if(operation){const receipt=await prisma.syncOperation.findUnique({where:{tenantId_outletId_operationId:{tenantId,outletId,operationId:operation.id}}});if(receipt){if(receipt.userId!==operation.userId||receipt.fingerprint!==operation.fingerprint)throw new Error('Operation ID reused with different content');return receipt.result as any;}}
+  if(operation?.expectedStatus && order.status!==operation.expectedStatus)throw new Error('Order changed on another device; review before retrying');
   if (order.status === 'SETTLED') throw new Error('Order already settled');
   if (order.status === 'VOIDED') throw new Error('Cannot settle voided order');
   if (order.paymentStatus === 'PAID' && input.paymentMethod.toUpperCase() !== 'ONLINE')
@@ -281,10 +298,12 @@ export async function settleOrder(
     taxRates: settings.taxRates,
   };
 
+  let lowStock: {name:string;quantity:number;crossedThreshold:boolean}[]=[];
   const settled = await prisma.$transaction(async (tx) => {
+    if(operation){const replay=await replayResult(tx,tenantId,outletId,operation);if(replay)return replay as any;}
     // Claim settlement before allocating an invoice. A concurrent attempt rolls back.
     const claim = await tx.order.updateMany({
-      where: { id: orderId, tenantId, outletId, status: { notIn: ['SETTLED', 'VOIDED'] } },
+      where: { id: orderId, tenantId, outletId, status: operation?.expectedStatus ? operation.expectedStatus as OrderStatus : { notIn: ['SETTLED', 'VOIDED'] }, updatedAt: order.updatedAt },
       data: { status: 'SETTLED' },
     });
     if (claim.count !== 1) throw new Error('Order already settled or voided');
@@ -302,7 +321,8 @@ export async function settleOrder(
         )
       : discountAmountNum;
     const totals = calculateOrderTotals({ ...calculation, discountAmount: discount });
-    await deductRecipes(tx, tenantId, outletId, orderId, order.createdByUserId, order.items);
+    if(operation?.expectedTotal!==undefined&&Math.round(totals.total*100)!==Math.round(operation.expectedTotal*100))throw new Error('Order price changed; review recorded payment');
+    lowStock=await deductRecipes(tx, tenantId, outletId, orderId, order.createdByUserId, order.items);
     if (order.customerId) await awardLoyalty(tx, tenantId, order.customerId, orderId, totals.total);
     if (input.paymentMethod.toUpperCase() === 'CASH') {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId + ':drawer:' + outletId}))::text`;
@@ -399,11 +419,14 @@ export async function settleOrder(
       });
     }
 
-    return { ...updated, invoiceNumber };
+    const result={ ...updated, invoiceNumber };
+    await acknowledge(tx,tenantId,outletId,operation,result);
+    return result;
   });
 
   if (order.tableId)
     emitToOutlet(tenantId, outletId, 'table:available', { tableId: order.tableId });
+  for(const change of lowStock.filter(item=>item.crossedThreshold))void notifyManagers(tenantId,outletId,'stock:low','Low stock: '+change.name,'Remaining quantity: '+change.quantity).catch(()=>console.error('Stock notification could not be recorded'));
   emitToOutlet(tenantId, outletId, 'order:updated', settled);
   return settled;
 }

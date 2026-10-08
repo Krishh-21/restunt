@@ -17,7 +17,6 @@ export default function OrderPage() {
     updateQuantity,
     subtotal,
     setOrderId,
-    clear,
   } = useCartStore();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
@@ -51,11 +50,7 @@ export default function OrderPage() {
               modifiers: i.modifiers,
             })),
           });
-      if (order.pendingSync) {
-        clear();
-        navigate('/tables');
-        return;
-      }
+      if (order.pendingSync) {setOrderId(order.id);navigate('/payment');return;}
       setOrderId(order.id);
       await api.generateKOT(token!, outletId!, order.id);
       navigate('/payment');

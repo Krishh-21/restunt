@@ -24,13 +24,17 @@ dinely-restaurant-os/
 
 - **Frontend**: React 18, TypeScript, Tailwind CSS, Zustand, React Query, Socket.IO
 - **Backend**: Node.js, Express, PostgreSQL, Redis, Prisma ORM, Bull queues
-- **Infrastructure**: Multi-tenant (schema-per-tenant), AWS S3, Socket.IO, Firebase FCM
+- **Infrastructure**: Multi-tenant (tenant-scoped shared schemas), AWS S3, Socket.IO, Firebase FCM
+
+## Portable Docker setup
+
+Start with [the portable deployment guide](docs/PORTABLE_DEPLOYMENT.md) for generated `.env` secrets, Docker, first restaurant setup, HTTPS hosting and optional integrations. See [actual progress](.kiro/specs/dinely/progress.md) for unfinished requirements.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
+- Node.js >= 22.0.0
 - npm >= 9.0.0
 - PostgreSQL >= 14
 - Redis >= 7

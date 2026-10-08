@@ -56,7 +56,7 @@ export function Storefront({ qr = false }: { qr?: boolean }) {
   const [type, setType] = useState(qr ? 'dine-in' : 'takeaway');
   const [gateway, setGateway] = useState('stripe');
   const [filter, setFilter] = useState('');
-  const base = import.meta.env?.VITE_API_URL || '';
+  const base = (globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl ?? import.meta.env?.VITE_API_URL ?? '';
   async function request(path: string, method = 'GET', body?: unknown, token?: string) {
     const response = await fetch(base + '/api/public' + path, {
       method,

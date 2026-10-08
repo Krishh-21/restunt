@@ -1,3 +1,4 @@
+if (import.meta.env.PROD && 'serviceWorker' in navigator) { void navigator.serviceWorker.register(new URL('./sw.js',window.location.href),{scope:new URL('./',window.location.href).pathname}).catch(()=>undefined); }
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { useState } from 'react';
@@ -19,7 +20,7 @@ function Captain() {
           setError('');
           const values = new FormData(event.currentTarget);
           try {
-            const response = await fetch((import.meta.env.VITE_API_URL || '') + '/api/auth/pin', {
+            const response = await fetch(((globalThis as {__DINELY_CONFIG__?:{apiUrl:string}}).__DINELY_CONFIG__?.apiUrl ?? import.meta.env.VITE_API_URL ?? '') + '/api/auth/pin', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ outletId: values.get('outletId'), pin: values.get('pin') }),

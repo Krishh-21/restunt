@@ -79,8 +79,3 @@ export async function verifyInventoryDeduction(data: unknown) {
   // Settlement deducts inventory in the invoice transaction. Never deduct again on retry.
   return { verified: true, orderId: order.id };
 }
-export async function backupUnavailable() {
-  throw new Error(
-    'Backup worker requires an installed and configured backup adapter; no backup was created'
-  );
-}

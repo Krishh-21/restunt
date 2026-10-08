@@ -101,6 +101,7 @@ const enabled = !!process.env.INTEGRATION_DATABASE_URL;
   }, 30000);
   afterAll(async () => {
     for (const model of [
+      'syncOperation',
       'bill',
       'payment',
       'journalEntry',
@@ -185,6 +186,21 @@ const enabled = !!process.env.INTEGRATION_DATABASE_URL;
     expect(
       (await prisma.invoiceSequence.findFirst({ where: { tenantId, outletId } }))?.lastSequence
     ).toBe(before?.lastSequence);
+  });
+  test('offline settlement receipt survives replay and rejects operation ID reuse',async()=>{
+    const order=await createOrder(tenantId,outletId,userId,input());
+    const operation={id:randomUUID(),userId,fingerprint:'same-request'};
+    const first=await settleOrder(tenantId,outletId,order.id,{paymentMethod:'card'},operation);
+    const replay=await settleOrder(tenantId,outletId,order.id,{paymentMethod:'card'},operation);
+    expect(replay.invoiceNumber).toBe(first.invoiceNumber);
+    expect(await prisma.payment.count({where:{tenantId,orderId:order.id}})).toBe(1);
+    await expect(settleOrder(tenantId,outletId,order.id,{paymentMethod:'cash'},{...operation,fingerprint:'changed-request'})).rejects.toThrow('different content');
+  });
+  test('offline recorded amount mismatch rolls back every settlement effect',async()=>{
+    const order=await createOrder(tenantId,outletId,userId,input());
+    await expect(settleOrder(tenantId,outletId,order.id,{paymentMethod:'card'},{id:randomUUID(),userId,fingerprint:'mismatch',expectedTotal:0})).rejects.toThrow('price changed');
+    expect(await prisma.payment.count({where:{tenantId,orderId:order.id}})).toBe(0);
+    expect((await prisma.order.findUniqueOrThrow({where:{id:order.id}})).status).toBe('DRAFT');
   });
   test('foreign tenant cannot settle fixture order', async () => {
     const order = await createOrder(tenantId, outletId, userId, input());
