@@ -127,7 +127,7 @@ syncRouter.post(
     const [orders, tables, menu] = await Promise.all([
       prisma.order.findMany({
         where: { ...scope(req), updatedAt: dates },
-        include: { items: true },
+        include: { items: true, bills:{select:{billNumber:true},take:1} },
       }),
       prisma.table.findMany({ where: { ...scope(req), updatedAt: dates } }),
       prisma.menuItem.findMany({
@@ -141,7 +141,7 @@ syncRouter.post(
     res.json({
       accepted,
       conflicts,
-      delta: { orders, tables, menu },
+      delta: { orders:orders.map(({bills,...order})=>({...order,invoiceNumber:bills[0]?.billNumber??null})), tables, menu },
       timestamp: highWater.toISOString(),
     });
   })
