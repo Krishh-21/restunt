@@ -66,7 +66,7 @@ export default function OrderPage() {
   return (
     <Layout title={`Table ${tableNumber}`} showBack onBack={() => navigate('/tables')}>
       {menuLoading&&<p role="status">Loading menu...</p>}
-      {menuError&&<p role="alert">Menu unavailable: {(menuError as Error).message}</p>}
+      {!!menuError&&<p role="alert">Menu unavailable: {(menuError as Error).message}</p>}
       {selected && (
         <div
           role="dialog"
