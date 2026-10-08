@@ -38,3 +38,5 @@ it('rejects duplicates', () => {
 });
 
 test('legacy seeded modifier maps normalize to selectable groups',()=>{expect(resolveModifiers({spiceLevel:{options:[{name:'Mild',priceAdjustment:0}]}},[{name:'spiceLevel',option:'Mild',priceAdjustment:99}])).toEqual([{name:'spiceLevel',option:'Mild',priceAdjustment:0}]);});
+
+test('actual legacy seed uses named groups and uppercase type',()=>{expect(resolveModifiers({spiceLevel:{name:'Spice Level',type:'SINGLE',required:false,options:[{name:'Mild',priceAdjustment:0}]}},[{name:'Spice Level',option:'Mild',priceAdjustment:99}])).toEqual([{name:'Spice Level',option:'Mild',priceAdjustment:0}]);});

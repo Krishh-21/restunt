@@ -8,8 +8,8 @@ const configuration = z.array(
   })
 );
 export function normalizeModifierConfiguration(raw:unknown){
- const input=raw&&typeof raw==='object'&&!Array.isArray(raw)?Object.entries(raw).map(([name,value])=>({...value as Record<string,unknown>,name})):raw??[];
- return configuration.parse(input);
+ const input=raw&&typeof raw==='object'&&!Array.isArray(raw)?Object.entries(raw).map(([name,value])=>({...value as Record<string,unknown>,name:(value as Record<string,unknown>).name??name})):raw??[];
+ return configuration.parse(Array.isArray(input)?input.map(group=>({...group,type:typeof group.type==='string'?group.type.toLowerCase():group.type})):input);
 }
 interface Selection {
   name: string;

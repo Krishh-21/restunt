@@ -23,7 +23,7 @@ export default function OrderPage() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<MenuItemResponse | null>(null);
 
-  const { data: menuData } = useQuery({
+  const { data: menuData, error: menuError, isLoading: menuLoading } = useQuery({
     queryKey: ['menu', outletId],
     queryFn: () => api.getMenu(token!, outletId!),
     enabled: !!token && !!outletId,
@@ -65,6 +65,8 @@ export default function OrderPage() {
 
   return (
     <Layout title={`Table ${tableNumber}`} showBack onBack={() => navigate('/tables')}>
+      {menuLoading&&<p role="status">Loading menu...</p>}
+      {menuError&&<p role="alert">Menu unavailable: {(menuError as Error).message}</p>}
       {selected && (
         <div
           role="dialog"
