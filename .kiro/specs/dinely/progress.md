@@ -1,6 +1,6 @@
 # Dinely progress audit — 2026-10-08
 
-Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 72 partial, 49 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
+Reviewed against actual source, not just checkbox history. 152 subtasks: **31 implemented source scope, 73 partial, 48 pending**. Implemented does not mean production certified. Optional test tasks remain unchecked unless their requested test exists.
 
 ## Work delivered
 
@@ -8,7 +8,7 @@ All nine active workspaces now build. Captain, QR Menu and Online Store have wor
 
 ## Evidence
 
-The first complete CI run passed all workspace builds, migration deployment and four real PostgreSQL tests: duplicate operation replay, concurrent settlement, transaction rollback and foreign-tenant rejection. Follow-up fixes are subject to the final PR check run. Local unit/property tests pass; database tests are intentionally skipped locally without a dedicated `_test` database. See the PR checks for the final commit evidence. Browser end-to-end testing, provider sandbox/live callbacks, Docker execution and production deployment are not verified here.
+The first complete CI run passed all workspace builds, migration deployment and four real PostgreSQL tests: duplicate operation replay, concurrent settlement, transaction rollback and foreign-tenant rejection. The follow-up CI run also passed all workspaces, the updated migration, repeated demo seeding and database tests. Payment regression tests pass locally and are included in the final PR checks. Local unit/property tests pass; database tests are intentionally skipped locally without a dedicated `_test` database. See the PR checks for the final commit evidence. Browser end-to-end testing, provider sandbox/live callbacks, Docker execution and production deployment are not verified here.
 
 ## Unfinished requirements
 
@@ -96,7 +96,7 @@ Run/setup details: [docs/RUNNING.md](../../../docs/RUNNING.md). The task table b
 | 21.1 Integrate Razorpay payment gateway | Partial | Razorpay checkout, raw HMAC capture validation, amount checks and reconciliation; sandbox/live acceptance remains. |
 | 21.2 Integrate Stripe payment gateway | Partial | Stripe hosted checkout, raw signature validation, idempotency and reconciliation; sandbox/live acceptance remains. |
 | 21.3 Implement payment failure handling and refunds | Pending | No implementation found for this task. |
-| 21.4 Write integration tests for payment flows | Pending | Optional test not implemented. |
+| 21.4 Write integration tests for payment flows | Partial | Signature, amount/currency, replay and late-event regression tests; real provider integration remains. |
 | 22.1 Create webhook handlers for third-party platforms | Pending | No implementation found for this task. |
 | 22.2 Implement order transformation from aggregator formats | Pending | No implementation found for this task. |
 | 22.3 Implement status synchronization to aggregators | Pending | No implementation found for this task. |
