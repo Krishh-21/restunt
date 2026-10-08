@@ -1,3 +1,4 @@
+import { asyncHandler } from '../../lib/asyncHandler';
 import { Router } from 'express';
 import { prisma } from '../../lib/prisma';
 import { authenticate, requireOutletAccess, requirePermission } from '../../middleware/auth';
@@ -13,7 +14,7 @@ function elapsedColor(createdAt: Date): 'green' | 'yellow' | 'red' {
   return 'red';
 }
 
-kdsRouter.get('/orders', requirePermission('view_kds'), async (req, res) => {
+kdsRouter.get('/orders', requirePermission('view_kds'), asyncHandler(async (req, res) => {
   const stationId = req.query.stationId as string | undefined;
   const orders = await prisma.order.findMany({
     where: {
@@ -35,52 +36,57 @@ kdsRouter.get('/orders', requirePermission('view_kds'), async (req, res) => {
   }));
 
   res.json(enriched.filter((o) => o.items.length > 0));
-});
+}));
 
-kdsRouter.patch('/orders/:orderId/items/:itemId', requirePermission('update_order_status'), async (req, res) => {
-  const item = await prisma.orderItem.update({
-    where: { id: req.params.itemId as string },
-    data: { status: 'READY' },
+kdsRouter.patch('/orders/:orderId/items/:itemId', requirePermission('update_order_status'), asyncHandler(async (req, res) => {
+  const existing = await prisma.orderItem.findFirst({
+    where: { id: req.params.itemId as string, orderId: req.params.orderId as string,
+      order: { tenantId: req.user!.tenantId, outletId: req.outletId!, status: { in: ['SUBMITTED', 'PREPARING', 'READY'] } } },
   });
+  if (!existing) { res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Active order item not found' } }); return; }
 
-  const pending = await prisma.orderItem.count({
-    where: { orderId: req.params.orderId as string, status: { not: 'READY' } },
-  });
-
-  if (pending === 0) {
-    await prisma.order.update({
-      where: { id: req.params.orderId as string },
+  const item = await prisma.$transaction(async tx => {
+    const updated = await tx.orderItem.update({
+      where: { id: req.params.itemId as string, orderId: req.params.orderId as string,
+        order: { tenantId: req.user!.tenantId, outletId: req.outletId!, status: { in: ['SUBMITTED', 'PREPARING', 'READY'] } } },
       data: { status: 'READY' },
     });
-  } else {
-    await prisma.order.update({
-      where: { id: req.params.orderId as string },
-      data: { status: 'PREPARING' },
+    const pending = await tx.orderItem.count({ where: { orderId: req.params.orderId as string, status: { not: 'READY' } } });
+    await tx.order.update({
+      where: { id: req.params.orderId as string, tenantId: req.user!.tenantId, outletId: req.outletId!, status: { in: ['SUBMITTED', 'PREPARING', 'READY'] } },
+      data: { status: pending === 0 ? 'READY' : 'PREPARING' },
     });
-  }
+    return updated;
+  });
 
   emitToOutlet(req.user!.tenantId, req.outletId as string, 'order:update', { orderId: req.params.orderId, item });
   res.json(item);
-});
+}));
 
-kdsRouter.post('/orders/:id/ready', requirePermission('update_order_status'), async (req, res) => {
+kdsRouter.post('/orders/:id/ready', requirePermission('update_order_status'), asyncHandler(async (req, res) => {
+  const existing = await prisma.order.findFirst({ where: {
+    id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId!,
+    status: { in: ['SUBMITTED', 'PREPARING', 'READY'] },
+  } });
+  if (!existing) { res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Active order not found' } }); return; }
+
   const order = await prisma.order.update({
-    where: { id: req.params.id as string },
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId!, status: { in: ['SUBMITTED', 'PREPARING', 'READY'] } },
     data: { status: 'READY', items: { updateMany: { where: {}, data: { status: 'READY' } } } },
     include: { items: true },
   });
   emitToOutlet(req.user!.tenantId, req.outletId as string, 'order:update', order);
   res.json(order);
-});
+}));
 
-kdsRouter.get('/stations', requirePermission('view_kds'), async (req, res) => {
+kdsRouter.get('/stations', requirePermission('view_kds'), asyncHandler(async (req, res) => {
   const stations = await prisma.kitchenStation.findMany({
     where: { tenantId: req.user!.tenantId, outletId: req.outletId as string, isActive: true },
   });
   res.json(stations);
-});
+}));
 
-kdsRouter.post('/stations', requirePermission('manage_inventory'), async (req, res) => {
+kdsRouter.post('/stations', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
   const { name, type } = req.body as { name: string; type?: string };
   const station = await prisma.kitchenStation.create({
     data: {
@@ -91,4 +97,4 @@ kdsRouter.post('/stations', requirePermission('manage_inventory'), async (req, r
     },
   });
   res.status(201).json(station);
-});
+}));

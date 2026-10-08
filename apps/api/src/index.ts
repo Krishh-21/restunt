@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -8,6 +9,8 @@ import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
 import { prisma, disconnectPrisma } from './lib/prisma';
+import { inventoryRouter } from './routes/inventory';
+import { ZodError } from 'zod';
 import { authRouter } from './routes/auth';
 import { tenantRouter } from './routes/tenants';
 import { menuRouter } from './routes/menu';
@@ -58,6 +61,7 @@ app.use('/api/pos/orders', posOrdersRouter);
 app.use('/api/pos/tables', posTablesRouter);
 app.use('/api/pos/reservations', posReservationsRouter);
 app.use('/api/kds', kdsRouter);
+app.use('/api/inventory', inventoryRouter);
 
 setSocketIO(io);
 
@@ -68,7 +72,10 @@ io.use((socket, next) => {
     const payload = jwt.verify(token, JWT_SECRET) as AuthUser & { outletId?: string };
     socket.data.user = payload;
     socket.data.tenantId = payload.tenantId;
-    socket.data.outletId = payload.outletId ?? payload.outletIds[0];
+    const requestedOutlet = socket.handshake.auth.outletId as string | undefined;
+    const outletId = requestedOutlet ?? payload.outletId ?? payload.outletIds[0];
+    if (!outletId || !payload.outletIds.includes(outletId)) return next(new Error('No outlet access'));
+    socket.data.outletId = outletId;
     next();
   } catch {
     next(new Error('Invalid token'));
@@ -83,11 +90,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => socket.leave(room));
 });
 
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: Error & { status?: number; code?: string }, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof ZodError) { res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid request', details: err.flatten() } }); return; }
   console.error(err);
-  res.status(500).json({
-    error: { code: 'INTERNAL_ERROR', message: err.message || 'Internal server error' },
-  });
+  const status = err.status ?? 500;
+  res.status(status).json({ error: { code: err.code ?? 'INTERNAL_ERROR', message: status < 500 ? err.message : 'Internal server error' } });
 });
 
 const serverInstance = httpServer.listen(PORT, () => {

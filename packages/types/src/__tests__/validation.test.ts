@@ -11,7 +11,7 @@ import {
   validateOrThrow,
   validatePartial,
 } from '../validation.js';
-import { OrderType, UserRole } from '../enums.js';
+import { OrderType } from '../enums.js';
 
 describe('Validation Schemas', () => {
   describe('CreateOrderRequestSchema', () => {
@@ -253,17 +253,10 @@ describe('Type Guards and Validation Helpers', () => {
 
   describe('UUID validation', () => {
     it('should validate proper UUID formats', () => {
-      const validUUIDs = [
-        '123e4567-e89b-12d3-a456-426614174000',
-        'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        generateTestId(), // Should generate valid UUIDs
-      ];
-
-      // Note: generateTestId() might not generate proper UUIDs in tests
-      // So we'll test with known valid UUIDs
       const testUUIDs = [
         '123e4567-e89b-12d3-a456-426614174000',
-        'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        'a1b2c3d4-e5f6-4890-abcd-ef1234567890',
+        generateTestId(),
       ];
 
       testUUIDs.forEach((uuid) => {

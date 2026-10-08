@@ -10,13 +10,8 @@ import type {
   OrderItem,
   Table,
   MenuItem,
-  InventoryItem,
-  User,
   Customer,
   Reservation,
-  Payment,
-  CashDrawerSession,
-  Device,
 } from './database.js';
 
 import type {
@@ -738,7 +733,7 @@ export const filterEvents = <T extends DinelySocketEvent>(
 export const groupEventsByType = (events: DinelySocketEvent[]): Record<string, DinelySocketEvent[]> => {
   return events.reduce((groups, event) => {
     groups[event.type] = groups[event.type] || [];
-    groups[event.type].push(event);
+    groups[event.type]!.push(event);
     return groups;
   }, {} as Record<string, DinelySocketEvent[]>);
 };

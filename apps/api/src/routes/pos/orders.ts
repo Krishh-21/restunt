@@ -1,3 +1,4 @@
+import { asyncHandler } from '../../lib/asyncHandler';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
@@ -32,7 +33,7 @@ const createOrderSchema = z.object({
     .min(1),
 });
 
-posOrdersRouter.get('/', requirePermission('view_orders'), async (req, res) => {
+posOrdersRouter.get('/', requirePermission('view_orders'), asyncHandler(async (req, res) => {
   const status = req.query.status as string | undefined;
   const orders = await prisma.order.findMany({
     where: {
@@ -45,9 +46,9 @@ posOrdersRouter.get('/', requirePermission('view_orders'), async (req, res) => {
     take: 50,
   });
   res.json(orders);
-});
+}));
 
-posOrdersRouter.get('/invoices/next-number', requirePermission('process_payments'), async (req, res) => {
+posOrdersRouter.get('/invoices/next-number', requirePermission('process_payments'), asyncHandler(async (req, res) => {
   const year = new Date().getFullYear();
   const seq = await prisma.invoiceSequence.findUnique({
     where: {
@@ -59,11 +60,11 @@ posOrdersRouter.get('/invoices/next-number', requirePermission('process_payments
     },
   });
   res.json({ nextSequence: (seq?.lastSequence ?? 0) + 1, year });
-});
+}));
 
-posOrdersRouter.get('/:id', requirePermission('view_orders'), async (req, res) => {
+posOrdersRouter.get('/:id', requirePermission('view_orders'), asyncHandler(async (req, res) => {
   const order = await prisma.order.findFirst({
-    where: { id: req.params.id, tenantId: req.user!.tenantId, outletId: req.outletId as string },
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId as string },
     include: { items: true },
   });
   if (!order) {
@@ -71,9 +72,9 @@ posOrdersRouter.get('/:id', requirePermission('view_orders'), async (req, res) =
     return;
   }
   res.json(order);
-});
+}));
 
-posOrdersRouter.post('/', requirePermission('create_orders'), async (req, res) => {
+posOrdersRouter.post('/', requirePermission('create_orders'), asyncHandler(async (req, res) => {
   try {
     const input = createOrderSchema.parse(req.body);
     const order = await createOrder(
@@ -87,12 +88,12 @@ posOrdersRouter.post('/', requirePermission('create_orders'), async (req, res) =
     const message = err instanceof Error ? err.message : 'Failed to create order';
     res.status(400).json({ error: { code: 'ORDER_ERROR', message } });
   }
-});
+}));
 
-posOrdersRouter.patch('/:id/status', requirePermission('create_orders'), async (req, res) => {
-  const { status } = req.body as { status: string };
+posOrdersRouter.patch('/:id/status', requirePermission('create_orders'), asyncHandler(async (req, res) => {
+  const { status } = req.body as { status?: string };
   const valid = ['DRAFT', 'SUBMITTED', 'PREPARING', 'READY', 'SERVED', 'SETTLED', 'VOIDED'];
-  if (!valid.includes(status.toUpperCase())) {
+  if (typeof status !== 'string' || !valid.includes(status.toUpperCase())) {
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid status' } });
     return;
   }
@@ -100,7 +101,7 @@ posOrdersRouter.patch('/:id/status', requirePermission('create_orders'), async (
     const order = await updateOrderStatus(
       req.user!.tenantId,
       req.outletId as string,
-      req.params.id,
+      req.params.id as string,
       status.toUpperCase() as 'DRAFT'
     );
     res.json(order);
@@ -108,17 +109,17 @@ posOrdersRouter.patch('/:id/status', requirePermission('create_orders'), async (
     const message = err instanceof Error ? err.message : 'Status update failed';
     res.status(400).json({ error: { code: 'STATUS_ERROR', message } });
   }
-});
+}));
 
-posOrdersRouter.post('/:id/kot', requirePermission('create_orders'), async (req, res) => {
+posOrdersRouter.post('/:id/kot', requirePermission('create_orders'), asyncHandler(async (req, res) => {
   try {
-    const kot = await generateKOT(req.user!.tenantId, req.outletId as string, req.params.id);
+    const kot = await generateKOT(req.user!.tenantId, req.outletId as string, req.params.id as string);
     res.json(kot);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'KOT generation failed';
     res.status(400).json({ error: { code: 'KOT_ERROR', message } });
   }
-});
+}));
 
 const settleSchema = z.object({
   paymentMethod: z.enum(['cash', 'card', 'upi', 'wallet', 'online']),
@@ -127,30 +128,32 @@ const settleSchema = z.object({
   discountCode: z.string().optional(),
 });
 
-posOrdersRouter.post('/:id/settle', requirePermission('process_payments'), async (req, res) => {
+posOrdersRouter.post('/:id/settle', requirePermission('process_payments'), asyncHandler(async (req, res) => {
   try {
     const input = settleSchema.parse(req.body);
-    const order = await settleOrder(req.user!.tenantId, req.outletId as string, req.params.id, input as any);
+    if ((input.discountAmount || input.discountCode) && !['ADMIN', 'MANAGER'].includes(req.user!.role)) throw new Error('Manager approval required for discounts');
+    const order = await settleOrder(req.user!.tenantId, req.outletId as string, req.params.id as string, input as any);
     res.json(order);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Settlement failed';
     res.status(400).json({ error: { code: 'SETTLE_ERROR', message } });
   }
-});
+}));
 
 const voidSchema = z.object({
   reason: z.string().min(3),
   approvedByUserId: z.string().uuid(),
 });
 
-posOrdersRouter.post('/:id/void', requirePermission('create_orders'), async (req, res) => {
+posOrdersRouter.post('/:id/void', requirePermission('orders:void'), asyncHandler(async (req, res) => {
   try {
     const input = voidSchema.parse(req.body);
+    if (input.approvedByUserId !== req.user!.id) throw new Error('Approving manager must perform this action');
     const order = await voidOrder(
       req.user!.tenantId,
       req.outletId as string,
       req.user!.id,
-      req.params.id,
+      req.params.id as string,
       {
         reason: input.reason,
         approvedByUserId: input.approvedByUserId,
@@ -163,5 +166,5 @@ posOrdersRouter.post('/:id/void', requirePermission('create_orders'), async (req
     const message = err instanceof Error ? err.message : 'Void failed';
     res.status(400).json({ error: { code: 'VOID_ERROR', message } });
   }
-});
+}));
 

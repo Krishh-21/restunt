@@ -1,5 +1,10 @@
+import { resolveModifiers } from './orderModifiers';
 import { prisma } from '../lib/prisma';
-import { calculateOrderTotals, generateOrderNumber, generateInvoiceNumber } from './orderCalculation';
+import {
+  calculateOrderTotals,
+  generateOrderNumber,
+  generateInvoiceNumber,
+} from './orderCalculation';
 import { emitToOutlet } from '../lib/socket';
 import type { CreateOrderInput, OutletSettings, SettleOrderInput } from '@dinely/types';
 import type { OrderStatus, Prisma } from '@prisma/client';
@@ -33,23 +38,33 @@ function parseSettings(raw: unknown): OutletSettings {
     orderPrefix: s.orderPrefix ?? defaults.orderPrefix,
     billPrefix: s.billPrefix ?? defaults.billPrefix,
     autoKotPrint: s.autoKotPrint ?? defaults.autoKotPrint,
-    requireManagerApprovalForVoids: s.requireManagerApprovalForVoids ?? defaults.requireManagerApprovalForVoids,
-    requireManagerApprovalForDiscounts: s.requireManagerApprovalForDiscounts ?? defaults.requireManagerApprovalForDiscounts,
+    requireManagerApprovalForVoids:
+      s.requireManagerApprovalForVoids ?? defaults.requireManagerApprovalForVoids,
+    requireManagerApprovalForDiscounts:
+      s.requireManagerApprovalForDiscounts ?? defaults.requireManagerApprovalForDiscounts,
     cashDrawerSettings: s.cashDrawerSettings ?? defaults.cashDrawerSettings,
   };
 }
 
-async function nextOrderSequence(tenantId: string, outletId: string): Promise<number> {
+async function nextOrderSequence(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  outletId: string
+): Promise<number> {
   const year = new Date().getFullYear();
-  const count = await prisma.order.count({
+  const count = await tx.order.count({
     where: { tenantId, outletId, createdAt: { gte: new Date(`${year}-01-01`) } },
   });
   return count + 1;
 }
 
-async function nextInvoiceSequence(tenantId: string, outletId: string): Promise<number> {
+async function nextInvoiceSequence(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  outletId: string
+): Promise<number> {
   const year = new Date().getFullYear();
-  const seq = await prisma.invoiceSequence.upsert({
+  const seq = await tx.invoiceSequence.upsert({
     where: { tenantId_outletId_year: { tenantId, outletId, year } },
     create: { tenantId, outletId, year, lastSequence: 1 },
     update: { lastSequence: { increment: 1 } },
@@ -67,9 +82,14 @@ export async function createOrder(
   if (!outlet) throw new Error('Outlet not found');
 
   const settings = parseSettings(outlet.settings);
-  const menuItemIds = input.items.map((i) => i.menuItemId);
+  const menuItemIds = [...new Set(input.items.map((i) => i.menuItemId))];
   const menuItems = await prisma.menuItem.findMany({
-    where: { id: { in: menuItemIds }, tenantId, isAvailable: true },
+    where: {
+      id: { in: menuItemIds },
+      tenantId,
+      isAvailable: true,
+      OR: [{ outletId }, { outletId: null }],
+    },
     include: { category: true },
   });
 
@@ -78,7 +98,11 @@ export async function createOrder(
   }
 
   const itemMap = new Map(menuItems.map((m) => [m.id, m]));
-  const calcItems = input.items.map((i) => {
+  const resolvedItems = input.items.map((i) => ({
+    ...i,
+    modifiers: resolveModifiers(itemMap.get(i.menuItemId)!.modifiers, i.modifiers),
+  }));
+  const calcItems = resolvedItems.map((i) => {
     const menu = itemMap.get(i.menuItemId)!;
     return {
       unitPrice: Number(menu.price),
@@ -95,10 +119,11 @@ export async function createOrder(
     taxRates: settings.taxRates,
   });
 
-  const seq = await nextOrderSequence(tenantId, outletId);
-  const orderNumber = generateOrderNumber(settings.tablePrefix, new Date().getFullYear(), seq);
-
   const order = await prisma.$transaction(async (tx) => {
+    // Serialize numbering within an outlet; rolled-back orders consume no number.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId + ':' + outletId}))::text`;
+    const seq = await nextOrderSequence(tx, tenantId, outletId);
+    const orderNumber = generateOrderNumber(settings.tablePrefix, new Date().getFullYear(), seq);
     const created = await tx.order.create({
       data: {
         tenantId,
@@ -117,7 +142,7 @@ export async function createOrder(
         createdByUserId: userId,
         notes: input.notes,
         items: {
-          create: input.items.map((i) => {
+          create: resolvedItems.map((i) => {
             const menu = itemMap.get(i.menuItemId)!;
             return {
               menuItemId: menu.id,
@@ -135,15 +160,27 @@ export async function createOrder(
     });
 
     if (input.tableId) {
-      await tx.table.updateMany({
-        where: { id: input.tableId, tenantId, outletId },
+      const occupied = await tx.table.updateMany({
+        where: {
+          id: input.tableId,
+          tenantId,
+          outletId,
+          status: { in: ['AVAILABLE', 'RESERVED'] },
+          currentOrderId: null,
+        },
         data: { status: 'OCCUPIED', currentOrderId: created.id, occupiedAt: new Date() },
       });
+      if (occupied.count !== 1) throw new Error('Table not available in this outlet');
     }
 
     return created;
   });
 
+  if (input.tableId)
+    emitToOutlet(tenantId, outletId, 'table:occupied', {
+      tableId: input.tableId,
+      orderId: order.id,
+    });
   emitToOutlet(tenantId, outletId, 'order:created', order);
   return order;
 }
@@ -154,15 +191,22 @@ export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus
 ) {
+  const current = await prisma.order.findFirst({ where: { id: orderId, tenantId, outletId } });
+  if (!current) throw new Error('Order not found');
+  const transitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
+    DRAFT: ['SUBMITTED'],
+    SUBMITTED: ['PREPARING'],
+    PREPARING: ['READY'],
+    READY: ['SERVED'],
+  };
+  if (!transitions[current.status]?.includes(status)) {
+    throw new Error(`Invalid order transition: ${current.status} to ${status}`);
+  }
   const order = await prisma.order.update({
-    where: { id: orderId },
+    where: { id: orderId, tenantId, outletId, status: current.status },
     data: { status },
     include: { items: true },
   });
-
-  if (order.tenantId !== tenantId || order.outletId !== outletId) {
-    throw new Error('Order not found');
-  }
 
   emitToOutlet(tenantId, outletId, 'order:updated', order);
   return order;
@@ -180,37 +224,44 @@ export async function settleOrder(
 
   const order = await prisma.order.findFirst({
     where: { id: orderId, tenantId, outletId },
-    include: { items: true },
+    include: { items: { include: { menuItem: { include: { category: true } } } } },
   });
   if (!order) throw new Error('Order not found');
   if (order.status === 'SETTLED') throw new Error('Order already settled');
   if (order.status === 'VOIDED') throw new Error('Cannot settle voided order');
 
-  const discountAmountNum = input.discountAmount
-    ? Number(input.discountAmount)
-    : (typeof order.discountAmount === 'number'
-      ? order.discountAmount
-      : Number(order.discountAmount?.toString() ?? 0));
+  const discountAmountNum =
+    input.discountAmount !== undefined
+      ? Number(input.discountAmount)
+      : typeof order.discountAmount === 'number'
+        ? order.discountAmount
+        : Number(order.discountAmount?.toString() ?? 0);
 
   const totals = calculateOrderTotals({
     items: order.items.map((i) => ({
       unitPrice: Number(i.unitPrice),
       quantity: i.quantity,
       modifiers: (i.modifiers as any) ?? [],
+      taxCategory: i.menuItem.category.taxCategory ?? 'food',
     })),
     serviceChargePercent: settings.serviceChargePercent,
     discountAmount: discountAmountNum,
     taxRates: settings.taxRates,
   });
 
-  const invSeq = await nextInvoiceSequence(tenantId, outletId);
-  const invoiceNumber = generateInvoiceNumber(
-    settings.tablePrefix,
-    new Date().getFullYear(),
-    invSeq
-  );
-
   const settled = await prisma.$transaction(async (tx) => {
+    // Claim settlement before allocating an invoice. A concurrent attempt rolls back.
+    const claim = await tx.order.updateMany({
+      where: { id: orderId, tenantId, outletId, status: { notIn: ['SETTLED', 'VOIDED'] } },
+      data: { status: 'SETTLED' },
+    });
+    if (claim.count !== 1) throw new Error('Order already settled or voided');
+    const invSeq = await nextInvoiceSequence(tx, tenantId, outletId);
+    const invoiceNumber = generateInvoiceNumber(
+      settings.tablePrefix,
+      new Date().getFullYear(),
+      invSeq
+    );
     const updated = await tx.order.update({
       where: { id: orderId },
       data: {
@@ -228,6 +279,17 @@ export async function settleOrder(
         settledAt: new Date(),
       },
       include: { items: true },
+    });
+
+    await tx.payment.create({
+      data: {
+        tenantId,
+        orderId,
+        amount: totals.total,
+        method: input.paymentMethod.toUpperCase() as 'CASH',
+        status: 'PAID',
+        gatewayTransactionId: input.paymentTransactionId,
+      },
     });
 
     await tx.bill.create({
@@ -251,15 +313,16 @@ export async function settleOrder(
 
     if (order.tableId) {
       await tx.table.updateMany({
-        where: { id: order.tableId },
+        where: { id: order.tableId, tenantId, outletId, currentOrderId: orderId },
         data: { status: 'AVAILABLE', currentOrderId: null, occupiedAt: null },
       });
-      emitToOutlet(tenantId, outletId, 'table:available', { tableId: order.tableId });
     }
 
-    return updated;
+    return { ...updated, invoiceNumber };
   });
 
+  if (order.tableId)
+    emitToOutlet(tenantId, outletId, 'table:available', { tableId: order.tableId });
   emitToOutlet(tenantId, outletId, 'order:updated', settled);
   return settled;
 }
@@ -340,7 +403,7 @@ export async function voidOrder(
     where: { id: input.approvedByUserId, tenantId },
   });
   if (!manager) throw new Error('Approving manager not found');
-  
+
   const allowedRoles = ['ADMIN', 'MANAGER'];
   if (!allowedRoles.includes(manager.role)) {
     throw new Error('Approving user is not a manager or admin');
@@ -350,7 +413,7 @@ export async function voidOrder(
 
   const voided = await prisma.$transaction(async (tx) => {
     const updated = await tx.order.update({
-      where: { id: orderId },
+      where: { id: orderId, tenantId, outletId, status: { notIn: ['SETTLED', 'VOIDED'] } },
       data: {
         status: 'VOIDED',
         voidedAt: new Date(),
@@ -362,10 +425,9 @@ export async function voidOrder(
 
     if (order.tableId) {
       await tx.table.updateMany({
-        where: { id: order.tableId },
+        where: { id: order.tableId, tenantId, outletId, currentOrderId: orderId },
         data: { status: 'AVAILABLE', currentOrderId: null, occupiedAt: null },
       });
-      emitToOutlet(tenantId, outletId, 'table:available', { tableId: order.tableId });
     }
 
     const afterState = JSON.parse(JSON.stringify(updated));
@@ -390,7 +452,8 @@ export async function voidOrder(
     return updated;
   });
 
+  if (order.tableId)
+    emitToOutlet(tenantId, outletId, 'table:available', { tableId: order.tableId });
   emitToOutlet(tenantId, outletId, 'order:updated', voided);
   return voided;
 }
-

@@ -48,6 +48,18 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   }
 }
 
+const permissionNames: Record<string, string[]> = {
+  view_orders: ['orders:view'],
+  create_orders: ['orders:create'],
+  update_order_status: ['orders:update', 'orders:update-status'],
+  view_tables: ['tables:view', 'tables:manage'],
+  manage_inventory: ['inventory:manage'],
+  process_payments: ['payments:process'],
+  view_kds: ['kds:view', 'orders:update'],
+  'inventory:view': ['inventory:view', 'inventory:manage'],
+  manage_users: ['users:update'],
+};
+
 export function requirePermission(...permissions: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
@@ -55,8 +67,12 @@ export function requirePermission(...permissions: string[]) {
       return;
     }
 
-    const rolePerms = PERMISSIONS[req.user.role as UserRole] ?? [];
-    const allowed = rolePerms.includes('*') || permissions.every((p) => rolePerms.includes(p));
+    const rolePerms: readonly string[] = PERMISSIONS[req.user.role as UserRole] ?? [];
+    const allowed =
+      rolePerms.includes('*') ||
+      permissions.every((p) =>
+        (permissionNames[p] ?? [p]).some((name) => rolePerms.includes(name))
+      );
 
     if (!allowed) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
@@ -68,10 +84,12 @@ export function requirePermission(...permissions: string[]) {
 
 export function requireOutletAccess(req: Request, res: Response, next: NextFunction): void {
   if (!req.user || !req.outletId) {
-    res.status(400).json({ error: { code: 'OUTLET_REQUIRED', message: 'Outlet context required' } });
+    res
+      .status(400)
+      .json({ error: { code: 'OUTLET_REQUIRED', message: 'Outlet context required' } });
     return;
   }
-  if (req.user.role !== 'admin' && !req.user.outletIds.includes(req.outletId)) {
+  if (!req.user.outletIds.includes(req.outletId)) {
     res.status(403).json({ error: { code: 'FORBIDDEN', message: 'No access to this outlet' } });
     return;
   }

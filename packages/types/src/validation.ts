@@ -33,7 +33,7 @@ export const DecimalSchema = z.union([z.number(), z.string()]).transform((val) =
   if (isNaN(num)) throw new Error('Invalid decimal value');
   return num;
 });
-export const PhoneSchema = z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number');
+export const PhoneSchema = z.string().regex(/^\+?[1-9]\d{6,14}$/, 'Invalid phone number');
 export const EmailSchema = z.string().email('Invalid email format');
 export const PasswordSchema = z.string().min(8, 'Password must be at least 8 characters');
 export const PinSchema = z.string().regex(/^\d{4,6}$/, 'PIN must be 4-6 digits');
@@ -161,7 +161,7 @@ export const CreateUserRequestSchema = z.object({
   outletAssignments: z.array(IDSchema).min(1, 'At least one outlet assignment is required'),
 });
 
-export const UpdateUserRequestSchema = CreateUserRequestSchema.partial().omit(['tenantId'] as const);
+export const UpdateUserRequestSchema = CreateUserRequestSchema.partial().omit({ tenantId: true });
 
 // ========== Menu Management Schemas ==========
 export const ModifierOptionInputSchema = z.object({
@@ -326,7 +326,7 @@ export const CreateCustomerRequestSchema = z.object({
   emailOptIn: z.boolean().optional(),
 });
 
-export const UpdateCustomerRequestSchema = CreateCustomerRequestSchema.partial().omit(['phone']);
+export const UpdateCustomerRequestSchema = CreateCustomerRequestSchema.partial().omit({ phone: true });
 
 // ========== Loyalty Program Schemas ==========
 export const AwardLoyaltyPointsRequestSchema = z.object({
@@ -356,7 +356,7 @@ export const CreateReservationRequestSchema = z.object({
   return reservationDateTime > new Date();
 }, 'Reservation must be in the future');
 
-export const UpdateReservationRequestSchema = CreateReservationRequestSchema.partial().extend({
+export const UpdateReservationRequestSchema = CreateReservationRequestSchema.innerType().partial().extend({
   status: ReservationStatusSchema.optional(),
 });
 
@@ -521,7 +521,7 @@ export const WhatsAppCampaignRequestSchema = z.object({
 });
 
 // ========== Filter Schemas ==========
-export const OrdersFilterSchema = PaginationSchema.merge(DateRangeSchema).merge(SearchSchema).extend({
+export const OrdersFilterSchema = PaginationSchema.merge(DateRangeSchema.innerType()).merge(SearchSchema).extend({
   status: z.array(OrderStatusSchema).optional(),
   type: z.array(OrderTypeSchema).optional(),
   source: z.array(OrderSourceSchema).optional(),
@@ -529,7 +529,7 @@ export const OrdersFilterSchema = PaginationSchema.merge(DateRangeSchema).merge(
   customerId: IDSchema.optional(),
   outletId: IDSchema.optional(),
   createdByUserId: IDSchema.optional(),
-});
+}).refine(data => !(data.startDate && data.endDate) || new Date(data.startDate) <= new Date(data.endDate), 'End date must be after start date');
 
 export const CustomersFilterSchema = PaginationSchema.merge(SearchSchema).extend({
   loyaltyTier: z.array(CustomerTierSchema).optional(),
@@ -547,20 +547,20 @@ export const InventoryFilterSchema = PaginationSchema.merge(SearchSchema).extend
   outOfStock: z.boolean().optional(),
 });
 
-export const ReservationsFilterSchema = PaginationSchema.merge(DateRangeSchema).extend({
+export const ReservationsFilterSchema = PaginationSchema.merge(DateRangeSchema.innerType()).extend({
   status: z.array(ReservationStatusSchema).optional(),
   tableId: IDSchema.optional(),
   customerId: IDSchema.optional(),
-});
+}).refine(data => !(data.startDate && data.endDate) || new Date(data.startDate) <= new Date(data.endDate), 'End date must be after start date');
 
-export const FeedbackFilterSchema = PaginationSchema.merge(DateRangeSchema).extend({
+export const FeedbackFilterSchema = PaginationSchema.merge(DateRangeSchema.innerType()).extend({
   rating: z.object({
     min: z.number().int().min(1).max(5).optional(),
     max: z.number().int().min(1).max(5).optional(),
   }).optional(),
   status: z.array(FeedbackStatusSchema).optional(),
   hasComments: z.boolean().optional(),
-});
+}).refine(data => !(data.startDate && data.endDate) || new Date(data.startDate) <= new Date(data.endDate), 'End date must be after start date');
 
 // ========== Validation Helper Functions ==========
 export const validateOrThrow = <T>(schema: z.ZodSchema<T>, data: unknown): T => {
@@ -580,8 +580,7 @@ export const validatePartial = <T>(schema: z.ZodSchema<T>, data: unknown): { suc
   const result = schema.safeParse(data);
   return {
     success: result.success,
-    data: result.success ? result.data : undefined,
-    errors: result.success ? undefined : result.error,
+    ...(result.success ? { data: result.data } : { errors: result.error }),
   };
 };
 
@@ -610,7 +609,7 @@ export const ValidationConfig = {
   allowedImageTypes: ['image/jpeg', 'image/png', 'image/webp'],
   allowedDocumentTypes: ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   maxUploadFiles: 5,
-  phoneRegex: /^\+?[1-9]\d{1,14}$/,
+  phoneRegex: /^\+?[1-9]\d{6,14}$/,
   gstinRegex: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
   passwordRequirements: {
     minLength: 8,

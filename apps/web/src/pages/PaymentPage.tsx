@@ -19,7 +19,7 @@ export default function PaymentPage() {
   const navigate = useNavigate();
   const [method, setMethod] = useState<string>('cash');
   const [settling, setSettling] = useState(false);
-  const [invoice, setInvoice] = useState<ReturnType<typeof api.settleOrder> extends Promise<infer T> ? T : never | null>(null);
+  const [invoice, setInvoice] = useState<Awaited<ReturnType<typeof api.settleOrder>> | null>(null);
 
   const { data: order } = useQuery({
     queryKey: ['order', orderId],

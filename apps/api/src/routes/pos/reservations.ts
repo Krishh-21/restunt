@@ -1,3 +1,4 @@
+import { asyncHandler } from '../../lib/asyncHandler';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
@@ -17,7 +18,7 @@ const createReservationSchema = z.object({
   notes: z.string().optional(),
 });
 
-posReservationsRouter.post('/', requirePermission('create_orders'), async (req, res) => {
+posReservationsRouter.post('/', requirePermission('create_orders'), asyncHandler(async (req, res) => {
   try {
     const input = createReservationSchema.parse(req.body);
 
@@ -70,9 +71,9 @@ posReservationsRouter.post('/', requirePermission('create_orders'), async (req, 
     const message = err instanceof Error ? err.message : 'Reservation creation failed';
     res.status(400).json({ error: { code: 'RESERVATION_ERROR', message } });
   }
-});
+}));
 
-posReservationsRouter.get('/', requirePermission('view_orders'), async (req, res) => {
+posReservationsRouter.get('/', requirePermission('view_orders'), asyncHandler(async (req, res) => {
   const date = req.query.date as string | undefined; // YYYY-MM-DD
   const reservations = await prisma.reservation.findMany({
     where: {
@@ -84,9 +85,9 @@ posReservationsRouter.get('/', requirePermission('view_orders'), async (req, res
     orderBy: [{ reservationDate: 'asc' }, { reservationTime: 'asc' }],
   });
   res.json(reservations);
-});
+}));
 
-posReservationsRouter.patch('/:id/status', requirePermission('create_orders'), async (req, res) => {
+posReservationsRouter.patch('/:id/status', requirePermission('create_orders'), asyncHandler(async (req, res) => {
   const { status } = req.body as { status: string };
   const valid = ['CONFIRMED', 'SEATED', 'CANCELLED', 'NO_SHOW'];
   const upper = status.toUpperCase();
@@ -97,7 +98,7 @@ posReservationsRouter.patch('/:id/status', requirePermission('create_orders'), a
 
   try {
     const reservation = await prisma.reservation.findFirst({
-      where: { id: req.params.id, tenantId: req.user!.tenantId, outletId: req.outletId as string },
+      where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId as string },
     });
     if (!reservation) {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Reservation not found' } });
@@ -106,7 +107,7 @@ posReservationsRouter.patch('/:id/status', requirePermission('create_orders'), a
 
     const updated = await prisma.$transaction(async (tx) => {
       const resv = await tx.reservation.update({
-        where: { id: req.params.id },
+        where: { id: req.params.id as string },
         data: { status: upper as 'CONFIRMED' },
         include: { table: true },
       });
@@ -131,4 +132,4 @@ posReservationsRouter.patch('/:id/status', requirePermission('create_orders'), a
     const message = err instanceof Error ? err.message : 'Status update failed';
     res.status(400).json({ error: { code: 'STATUS_ERROR', message } });
   }
-});
+}));

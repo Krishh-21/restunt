@@ -6,7 +6,7 @@ module.exports = {
   
   // Test files
   testMatch: [
-    '<rootDir>/src/**/__tests__/**/*.{ts,tsx}',
+    '<rootDir>/src/**/__tests__/**/*.test.{ts,tsx}',
     '<rootDir>/src/**/*.(test|spec).{ts,tsx}',
   ],
   
@@ -35,7 +35,8 @@ module.exports = {
   
   // Module resolution
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
-  moduleNameMapping: {
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   
@@ -45,11 +46,7 @@ module.exports = {
   // TypeScript configuration
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: {
-        compilerOptions: {
-          module: 'commonjs',
-        },
-      },
+      tsconfig: { module: 'commonjs' },
     }],
   },
   

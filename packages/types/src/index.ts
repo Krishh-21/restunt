@@ -237,9 +237,6 @@ import type {
 import type {
   CreateOrderRequest as APICreateOrderRequest,
   SettleOrderRequest as APISettleOrderRequest,
-  LoginResponse as APILoginResponse,
-  ApiError as APIError,
-  AuthUser as APIAuthUser,
 } from './api.js';
 
 import {
@@ -270,9 +267,6 @@ export type {
   // API types (renamed to avoid conflicts)
   APICreateOrderRequest as CreateOrderInput,
   APISettleOrderRequest as SettleOrderInput,
-  APILoginResponse as LoginResponse,
-  APIError as ApiError,
-  APIAuthUser as AuthUser,
   
   // Enum types for backward compatibility
   UserRole,

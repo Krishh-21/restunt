@@ -1,3 +1,4 @@
+import { asyncHandler } from '../lib/asyncHandler';
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
@@ -13,12 +14,11 @@ const loginSchema = z.object({
   outletId: z.string().uuid().optional(),
 });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', asyncHandler(async (req, res) => {
   try {
     const body = loginSchema.parse(req.body);
     const user = await prisma.user.findFirst({
       where: { username: body.username, isActive: true },
-      include: { tenant: true },
     });
 
     if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
@@ -27,7 +27,7 @@ authRouter.post('/login', async (req, res) => {
     }
 
     const outletId = body.outletId ?? user.outletAssignments[0];
-    if (!outletId) {
+    if (!outletId || !user.outletAssignments.includes(outletId)) {
       res.status(400).json({ error: { code: 'NO_OUTLET', message: 'User has no assigned outlet' } });
       return;
     }
@@ -40,7 +40,7 @@ authRouter.post('/login', async (req, res) => {
       username: user.username,
       email: user.email,
       fullName: user.fullName,
-      role: user.role.toLowerCase() as AuthUser['role'],
+      role: user.role as AuthUser['role'],
       outletIds: user.outletAssignments,
     };
 
@@ -53,17 +53,17 @@ authRouter.post('/login', async (req, res) => {
     }
     throw err;
   }
-});
+}));
 
 const pinSchema = z.object({
   pin: z.string().length(4),
-  outletId: z.string().uuid().optional(),
+  outletId: z.string().uuid(),
 });
 
-authRouter.post('/pin', async (req, res) => {
+authRouter.post('/pin', asyncHandler(async (req, res) => {
   try {
     const body = pinSchema.parse(req.body);
-    const users = await prisma.user.findMany({ where: { isActive: true, pinHash: { not: null } } });
+    const users = await prisma.user.findMany({ where: { isActive: true, pinHash: { not: null }, outletAssignments: { has: body.outletId } } });
 
     for (const user of users) {
       if (user.pinHash && (await bcrypt.compare(body.pin, user.pinHash))) {
@@ -74,7 +74,7 @@ authRouter.post('/pin', async (req, res) => {
           username: user.username,
           email: user.email,
           fullName: user.fullName,
-          role: user.role.toLowerCase() as AuthUser['role'],
+          role: user.role as AuthUser['role'],
           outletIds: user.outletAssignments,
         };
         res.json({ token: signToken(authUser, outletId!), user: authUser, outletId });
@@ -90,4 +90,4 @@ authRouter.post('/pin', async (req, res) => {
     }
     throw err;
   }
-});
+}));

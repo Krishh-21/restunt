@@ -1,3 +1,4 @@
+import { asyncHandler } from '../../lib/asyncHandler';
 import { Router } from 'express';
 import { prisma } from '../../lib/prisma';
 import { authenticate, requireOutletAccess, requirePermission } from '../../middleware/auth';
@@ -6,18 +7,18 @@ import { emitToOutlet } from '../../lib/socket';
 export const posTablesRouter = Router();
 posTablesRouter.use(authenticate, requireOutletAccess);
 
-posTablesRouter.get('/', requirePermission('view_tables'), async (req, res) => {
+posTablesRouter.get('/', requirePermission('view_tables'), asyncHandler(async (req, res) => {
   const tables = await prisma.table.findMany({
     where: { tenantId: req.user!.tenantId, outletId: req.outletId as string },
     orderBy: { number: 'asc' },
   });
   res.json(tables);
-});
+}));
 
-posTablesRouter.patch('/:id/status', requirePermission('view_tables'), async (req, res) => {
+posTablesRouter.patch('/:id/status', requirePermission('view_tables'), asyncHandler(async (req, res) => {
   const { status } = req.body as { status: string };
   const valid = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING'];
-  const upper = status.toUpperCase();
+  const upper = typeof status === 'string' ? status.toUpperCase() : '';
   if (!valid.includes(upper)) {
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid table status' } });
     return;
@@ -31,7 +32,7 @@ posTablesRouter.patch('/:id/status', requirePermission('view_tables'), async (re
   }
 
   const result = await prisma.table.updateMany({
-    where: { id: req.params.id, tenantId: req.user!.tenantId, outletId: req.outletId as string },
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId as string },
     data,
   });
 
@@ -40,15 +41,15 @@ posTablesRouter.patch('/:id/status', requirePermission('view_tables'), async (re
     return;
   }
 
-  const table = await prisma.table.findUnique({ where: { id: req.params.id } });
+  const table = await prisma.table.findUnique({ where: { id: req.params.id as string } });
   emitToOutlet(req.user!.tenantId, req.outletId as string, 'table:status:updated', table);
   res.json(table);
-});
+}));
 
-posTablesRouter.post('/:id/merge', requirePermission('view_tables'), async (req, res) => {
+posTablesRouter.post('/:id/merge', requirePermission('view_tables'), asyncHandler(async (req, res) => {
   const { targetTableIds } = req.body as { targetTableIds: string[] };
   const primary = await prisma.table.findFirst({
-    where: { id: req.params.id, tenantId: req.user!.tenantId, outletId: req.outletId! },
+    where: { id: req.params.id as string, tenantId: req.user!.tenantId, outletId: req.outletId! },
   });
   if (!primary) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Primary table not found' } });
@@ -65,4 +66,4 @@ posTablesRouter.post('/:id/merge', requirePermission('view_tables'), async (req,
   });
 
   res.json({ merged: targetTableIds.length + 1, primaryTableId: primary.id });
-});
+}));

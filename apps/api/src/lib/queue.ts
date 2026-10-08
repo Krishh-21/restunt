@@ -7,7 +7,7 @@ let sharedSubscriber: Redis | Cluster | null = null;
 
 const getSharedSubscriber = (): Redis | Cluster => {
   if (!sharedSubscriber) {
-    sharedSubscriber = createRedisInstance();
+    sharedSubscriber = createRedisInstance({ enableReadyCheck: false, maxRetriesPerRequest: null });
     sharedSubscriber.on('error', (err) => {
       console.error('[Redis Subscriber] Connection Error:', err);
     });
@@ -39,7 +39,7 @@ const createQueue = (name: string): Queue.Queue => {
           return getSharedSubscriber();
         case 'bclient':
           // Bull needs a unique blocking connection (bclient) per queue
-          const bclient = createRedisInstance();
+          const bclient = createRedisInstance({ enableReadyCheck: false, maxRetriesPerRequest: null });
           bclient.on('error', (err) => {
             console.error(`[Redis bclient - ${name}] Connection Error:`, err);
           });

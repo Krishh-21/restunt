@@ -89,3 +89,21 @@ npm run test
 ## License
 
 Private - All rights reserved
+
+## Current implementation status
+
+See [.kiro/specs/dinely/progress.md](.kiro/specs/dinely/progress.md) for audited progress and remaining work. The complete product is not implemented yet.
+
+```bash
+npm ci
+npm run db:generate
+npm run build:core
+npm run test:core
+npm run dev --workspace=@dinely/api
+npm run dev --workspace=@dinely/web
+npm run dev --workspace=@dinely/kitchen
+```
+
+Run each development command in a separate terminal. The kitchen UI uses port 3001 and proxies API/Socket.IO to port 5000. Enable sound after signing in. For hosted frontends, set `VITE_API_URL` to the API origin and configure CORS/TLS for the hosting target.
+
+Inventory endpoints under `/api/inventory`: `GET/POST /items`, `PATCH /items/:id/adjust`, `GET /transactions`, and `GET/POST /vendors`. Adjustments require an authenticated manager/admin and current item `version`. Purchases use `type: "PURCHASE"`, positive `quantityChange` and `costPerUnit`. Stock and audit writes commit together. `inventory:low-stock` is a room event; push delivery remains pending.

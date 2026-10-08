@@ -1,5 +1,7 @@
 # Implementation Plan: Dinely Restaurant Operating System
 
+> Progress reviewed on 2026-10-08. See [progress.md](progress.md) for evidence and remaining work. Checked tasks represent implemented source scope, not a production certification.
+
 ## Overview
 
 This implementation plan breaks down the Dinely Restaurant Operating System into discrete coding tasks. The system is a multi-tenant SaaS platform built with TypeScript, React 18, Node.js/Express, PostgreSQL, and Redis. The architecture follows offline-first principles with real-time synchronization via Socket.IO.
@@ -29,7 +31,7 @@ The implementation follows a layered approach:
     - Configure connection pooling and read replica support
     - _Requirements: 1.1, 1.5_
 
-  - [ ] 1.3 Define core TypeScript interfaces and types for all domain entities
+  - [x] 1.3 Define core TypeScript interfaces and types for all domain entities
     - Create types for Tenant, Outlet, MenuItem, MenuCategory, ItemModifier
     - Create types for Order, OrderItem, Table, Reservation
     - Create types for InventoryItem, Recipe, StockTransaction, Vendor, PurchaseOrder
@@ -92,7 +94,7 @@ The implementation follows a layered approach:
     - Tag items with dietary attributes (vegetarian, vegan, gluten-free, spicy, allergens)
     - _Requirements: 24.1, 24.2, 24.3, 24.4, 24.6, 24.7_
 
-  - [ ] 3.2 Implement real-time menu synchronization via Socket.IO
+  - [x] 3.2 Implement real-time menu synchronization via Socket.IO
     - Broadcast menu updates to all connected devices within 10 seconds
     - Emit events: menu:item:updated, menu:item:availability
     - Filter broadcasts by tenant and outlet
@@ -107,7 +109,7 @@ The implementation follows a layered approach:
     - Generate sequential order numbers (OUT1-2024-00123 format)
     - _Requirements: 2.1, 2.2, 2.3_
 
-  - [ ]* 4.2 Write property test for order calculation correctness
+  - [x]* 4.2 Write property test for order calculation correctness
     - **Property 2: Order Calculation Correctness**
     - **Validates: Requirements 2.3**
     - Generate orders with random items, modifiers, tax rates, service charges, discounts
@@ -143,7 +145,7 @@ The implementation follows a layered approach:
     - Emit Socket.IO events for status changes
     - _Requirements: Order lifecycle management_
 
-  - [ ] 4.7 Implement payment processing and settlement
+  - [x] 4.7 Implement payment processing and settlement
     - POST /api/pos/orders/:id/settle - Process payment
     - Support payment methods: cash, card, UPI, wallet
     - Transition order to settled status and clear table
@@ -220,14 +222,14 @@ The implementation follows a layered approach:
     - Highlight rush/priority orders
     - _Requirements: 3.4, 4.5, 4.6_
 
-  - [ ] 7.3 Implement KDS station configuration
+  - [x] 7.3 Implement KDS station configuration
     - GET /api/kds/stations - List configured kitchen stations
     - POST /api/kds/stations - Create station (grill, fryer, cold station, etc.)
     - Assign menu items to stations via station_id
     - _Requirements: 4.3_
 
 - [ ] 8. Implement inventory management
-  - [ ] 8.1 Create inventory item CRUD API
+  - [x] 8.1 Create inventory item CRUD API
     - POST /api/inventory/items - Create inventory item
     - GET /api/inventory/items - List inventory items with filtering
     - PATCH /api/inventory/items/:id/adjust - Adjust stock (requires manager approval)
@@ -272,14 +274,14 @@ The implementation follows a layered approach:
     - Generate transactions that reduce stock below threshold
     - Verify alert is emitted when threshold crossed
 
-  - [ ] 8.7 Implement weighted average cost calculation
+  - [x] 8.7 Implement weighted average cost calculation
     - Calculate WAC when goods are received: (prev_qty × prev_WAC + new_qty × new_cost) / (prev_qty + new_qty)
     - Update inventory item with new WAC and quantity
     - Calculate current stock value for reporting
     - _Requirements: 8.6, 8.7_
 
 
-  - [ ]* 8.8 Write property test for weighted average cost calculation
+  - [x]* 8.8 Write property test for weighted average cost calculation
     - **Property 10: Weighted Average Cost Calculation**
     - **Validates: Requirements 8.6, 8.7**
     - Generate goods receipt transactions with various quantities and costs
@@ -287,7 +289,7 @@ The implementation follows a layered approach:
     - Verify new quantity = prev_qty + Q
 
 - [ ] 9. Implement vendor and purchase order management
-  - [ ] 9.1 Create vendor management API
+  - [x] 9.1 Create vendor management API
     - POST /api/inventory/vendors - Create vendor
     - GET /api/inventory/vendors - List vendors
     - Store contact person, phone, email, address, payment terms, GSTIN
@@ -772,7 +774,7 @@ The implementation follows a layered approach:
     - Verify device state converges to server state
 
 - [ ] 29. Implement real-time synchronization with Socket.IO
-  - [ ] 29.1 Set up Socket.IO server with room-based broadcasting
+  - [x] 29.1 Set up Socket.IO server with room-based broadcasting
     - Configure Socket.IO with WebSocket and long-polling fallback
     - Create rooms scoped by tenant and outlet: tenant_{tenantId}_outlet_{outletId}
     - Authenticate Socket.IO connections with JWT
@@ -872,7 +874,7 @@ The implementation follows a layered approach:
     - Display rush/priority order indicators
     - _Requirements: 4.1, 4.2, 4.5, 4.6_
 
-  - [ ] 33.2 Integrate KDS with backend APIs and Socket.IO
+  - [x] 33.2 Integrate KDS with backend APIs and Socket.IO
     - GET active orders for station
     - Mark items complete via API
     - Mark orders ready via API

@@ -1,0 +1,88 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #101923;
+  color: #eef2f6;
+  font-family: system-ui, sans-serif;
+}
+main {
+  max-width: 1600px;
+  margin: auto;
+  padding: 28px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+h1 {
+  margin-right: auto;
+}
+section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+article {
+  background: #1d2a37;
+  border-top: 6px solid;
+  padding: 22px;
+  border-radius: 12px;
+}
+.green {
+  border-color: #47c894;
+}
+.yellow {
+  border-color: #f1c65b;
+}
+.red {
+  border-color: #fa7676;
+}
+button,
+select,
+input {
+  font: inherit;
+  padding: 12px;
+  border: 1px solid #586779;
+  border-radius: 6px;
+}
+button {
+  background: #f4bc6a;
+  color: #17202a;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #3b4b5a;
+}
+small {
+  display: block;
+  color: #f4bc6a;
+  margin-top: 6px;
+}
+article button {
+  margin-top: 18px;
+  width: 100%;
+}
+form {
+  max-width: 360px;
+  display: grid;
+  gap: 18px;
+}
+form label {
+  display: grid;
+  gap: 8px;
+}
+[role='alert'] {
+  color: #ffaaaa;
+}

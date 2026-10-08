@@ -1,6 +1,6 @@
+import { asyncHandler } from '../lib/asyncHandler';
 import { Router } from 'express';
 import { z } from 'zod';
-import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireOutletAccess, requirePermission } from '../middleware/auth';
 import { emitToOutlet } from '../lib/socket';
@@ -40,7 +40,7 @@ const menuItemSchema = z.object({
     .optional(),
 });
 
-menuRouter.get('/', requireOutletAccess, async (req, res) => {
+menuRouter.get('/', requireOutletAccess, asyncHandler(async (req, res) => {
   const tenantId = req.user!.tenantId;
   const outletId = req.outletId as string;
 
@@ -59,10 +59,10 @@ menuRouter.get('/', requireOutletAccess, async (req, res) => {
     },
   });
 
-  res.json({ categories });
-});
+  res.json({ categories: categories.map(({ menuItems, ...category }) => ({ ...category, items: menuItems })) });
+}));
 
-menuRouter.post('/categories', requirePermission('manage_inventory'), async (req, res) => {
+menuRouter.post('/categories', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
   try {
     const body = categorySchema.parse(req.body);
     const category = await prisma.menuCategory.create({
@@ -82,9 +82,9 @@ menuRouter.post('/categories', requirePermission('manage_inventory'), async (req
     }
     throw err;
   }
-});
+}));
 
-menuRouter.post('/items', requirePermission('manage_inventory'), async (req, res) => {
+menuRouter.post('/items', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
   try {
     const body = menuItemSchema.parse(req.body);
     const item = await prisma.menuItem.create({
@@ -99,7 +99,6 @@ menuRouter.post('/items', requirePermission('manage_inventory'), async (req, res
         tags: body.tags ?? [],
         stationId: body.stationId,
         preparationTimeMinutes: body.preparationTimeMinutes ?? 15,
-        taxCategory: body.taxCategory ?? 'food',
         modifiers: body.modifiers as any,
       },
     });
@@ -113,9 +112,9 @@ menuRouter.post('/items', requirePermission('manage_inventory'), async (req, res
     }
     throw err;
   }
-});
+}));
 
-menuRouter.patch('/items/:id', requirePermission('manage_inventory'), async (req, res) => {
+menuRouter.patch('/items/:id', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
   const { price, isAvailable, name, description, tags } = req.body as Record<string, unknown>;
   const item = await prisma.menuItem.updateMany({
     where: { id: req.params.id as string, tenantId: req.user!.tenantId },
@@ -138,9 +137,9 @@ menuRouter.patch('/items/:id', requirePermission('manage_inventory'), async (req
   });
   emitToOutlet(req.user!.tenantId, req.outletId as string, 'menu:item:updated', updated);
   res.json(updated);
-});
+}));
 
-menuRouter.patch('/items/:id/availability', requirePermission('manage_inventory'), async (req, res) => {
+menuRouter.patch('/items/:id/availability', requirePermission('manage_inventory'), asyncHandler(async (req, res) => {
   const { isAvailable } = req.body as { isAvailable: boolean };
   const updated = await prisma.menuItem.updateMany({
     where: { id: req.params.id as string, tenantId: req.user!.tenantId },
@@ -155,4 +154,4 @@ menuRouter.patch('/items/:id/availability', requirePermission('manage_inventory'
   const item = await prisma.menuItem.findUnique({ where: { id: req.params.id as string } });
   emitToOutlet(req.user!.tenantId, req.outletId as string, 'menu:item:availability', item);
   res.json(item);
-});
+}));

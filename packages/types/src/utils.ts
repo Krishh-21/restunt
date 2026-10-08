@@ -3,7 +3,7 @@
  * Common type utilities, pagination, filtering, and data transformation helpers
  */
 
-import type { DecimalValue, DateString, ID } from './database.js';
+import type { DecimalValue, DateString } from './database.js';
 
 // ========== Pagination Utilities ==========
 export interface PaginationParams {
@@ -172,7 +172,7 @@ export const sortBy = <T>(
 };
 
 // ========== Object Utilities ==========
-export const pick = <T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> => {
+export const pick = <T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> => {
   const picked = {} as Pick<T, K>;
   keys.forEach((key) => {
     if (key in obj) {
@@ -198,7 +198,7 @@ export const deepMerge = <T extends Record<string, unknown>>(
   target: T,
   source: Partial<T>
 ): T => {
-  const result = { ...target };
+  const result: Record<string, unknown> = { ...target };
   
   Object.keys(source).forEach((key) => {
     const sourceValue = source[key];
@@ -218,7 +218,7 @@ export const deepMerge = <T extends Record<string, unknown>>(
     }
   });
   
-  return result;
+  return result as T;
 };
 
 // ========== Validation Utilities ==========
@@ -272,7 +272,7 @@ export const maskPhone = (phone: string): string => {
 };
 
 export const maskEmail = (email: string): string => {
-  const [username, domain] = email.split('@');
+  const [username = '', domain = ''] = email.split('@');
   if (username.length <= 2) return email;
   
   const visibleChars = Math.min(2, Math.floor(username.length / 2));
@@ -438,9 +438,9 @@ export const calculateMedian = (values: number[]): number => {
   const mid = Math.floor(sorted.length / 2);
   
   if (sorted.length % 2 === 0) {
-    return roundDecimal((sorted[mid - 1] + sorted[mid]) / 2);
+    return roundDecimal((sorted[mid - 1]! + sorted[mid]!) / 2);
   } else {
-    return sorted[mid];
+    return sorted[mid]!;
   }
 };
 
@@ -453,10 +453,10 @@ export const calculatePercentile = (values: number[], percentile: number): numbe
   const ceil = Math.ceil(index);
   
   if (floor === ceil) {
-    return sorted[floor];
+    return sorted[floor]!;
   } else {
     const fraction = index - floor;
-    return roundDecimal(sorted[floor] * (1 - fraction) + sorted[ceil] * fraction);
+    return roundDecimal(sorted[floor]! * (1 - fraction) + sorted[ceil]! * fraction);
   }
 };
 

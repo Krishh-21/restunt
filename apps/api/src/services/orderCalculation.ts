@@ -75,10 +75,8 @@ export function calculateOrderTotals(input: OrderCalcInput): OrderCalcResult {
     grouped[key].taxAmount += lineTax;
   }
 
-  for (const [key, val] of Object.entries(grouped)) {
-    const parts = key.split('_');
-    const cgst = parseFloat(parts[1]);
-    const sgst = parseFloat(parts[2]);
+  for (const val of Object.values(grouped)) {
+    const { cgst, sgst } = val;
     const label = `CGST ${cgst}% + SGST ${sgst}%`;
     const roundedAmount = round2(val.taxAmount);
     
